@@ -39,20 +39,34 @@ Test file for the hdf5 stats.
 It just runs an SE simulation with the hdf5 stats and checks that the
 simulation succeeds and the stats file exists.
 No specific checks on the stats are performed.
+
+**Important Note**: This test has a major design flaw, noted here:
+https://gem5.atlassian.net/browse/GEM5-1073.
+It will not run if the build/ARM/gem5.opt has not been built. As this is not
+built prior to this test being processed during the Weekly run, this test is
+not run.
 """
-import re
 import os
+import re
+
 from testlib import *
 
 if config.bin_path:
     resource_path = config.bin_path
 else:
-    resource_path = joinpath(absdirpath(__file__), '..', 'resources')
+    resource_path = joinpath(absdirpath(__file__), "..", "resources")
+
 
 def have_hdf5():
     have_hdf5_file = os.path.join(
         config.base_dir, "build", constants.arm_tag, "config", "have_hdf5.hh"
     )
+    if not os.path.exists(have_hdf5_file):
+        # This will most likely happen if the file has yet to have been
+        # compiled. It should be noted that this case is likely. This is not
+        # a good test as checking if hdf5 is available requires compilation
+        # which is not assumed to be true at this stage in the test.
+        return False
     with open(have_hdf5_file) as f:
         content = f.read()
 
@@ -72,7 +86,7 @@ if have_hdf5():
     # FIXME: flaky, should check return code instead...
     # See: https://gem5.atlassian.net/browse/GEM5-1099
     err_regex = re.compile(
-        r'RuntimeError: Failed creating H5::DataSet \w+; .*'
+        r"RuntimeError: Failed creating H5::DataSet \w+; .*"
     )
     err_verifier = verifier.NoMatchRegex(err_regex, True, False)
 
@@ -86,17 +100,15 @@ if have_hdf5():
             config.base_dir,
             "tests",
             "gem5",
+            "stats",
             "configs",
             "simple_binary_run.py",
         ),
         config_args=[
             "arm-hello64-static",
-            "atomic",
             "--resource-directory",
             resource_path,
-            "arm",
         ],
         gem5_args=["--stats-file=h5://stats.h5"],
-        valid_isas=(constants.arm_tag,),
+        valid_isas=(constants.all_compiled_tag,),
     )
-

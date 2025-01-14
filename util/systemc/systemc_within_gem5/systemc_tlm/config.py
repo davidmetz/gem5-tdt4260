@@ -24,10 +24,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-import m5
 import sys
 
-from m5.objects import SystemC_Kernel, Root
+import m5
+from m5.objects import (
+    Root,
+    SystemC_Kernel,
+)
 
 # pylint:disable=unused-variable
 
@@ -38,8 +41,12 @@ kernel = SystemC_Kernel()
 root = Root(full_system=True, systemc_kernel=kernel)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--word', action="append", default=[],
-        help='Add a word to the list of words to print. Can be repeated.')
+parser.add_argument(
+    "--word",
+    action="append",
+    default=[],
+    help="Add a word to the list of words to print. Can be repeated.",
+)
 
 args = parser.parse_args()
 
@@ -50,7 +57,7 @@ args = parser.parse_args()
 #
 # The arguements passed to this function will be treated as the argv values
 # passed to the c++ sc_main, with the argc value set appropriately.
-m5.systemc.sc_main(*args.word);
+m5.systemc.sc_main(*args.word)
 
 # Construct the SimObject hierarchy. Anything sc_main built has already been
 # constructed.

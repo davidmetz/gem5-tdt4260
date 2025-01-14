@@ -1,4 +1,4 @@
-# Copyright (c) 2015 ARM Limited
+# Copyright (c) 2015, 2023 Arm Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -37,82 +37,113 @@
 
 import argparse
 
-from m5.util import addToPath, fatal
+from m5.util import (
+    addToPath,
+    fatal,
+)
 
-addToPath('../')
+addToPath("../")
 
-from common import Options
-from common import Simulation
-from common import CacheConfig
-from common import MemConfig
+from common import (
+    MemConfig,
+    Options,
+    Simulation,
+)
 from common.Caches import *
+
+
+def config_cache(args, system):
+    """
+    Configure the cache hierarchy.  Only two configurations are natively
+    supported as an example: L1(I/D) only or L1 + L2.
+    """
+    from common.CacheConfig import _get_cache_opts
+
+    system.l1i = L1_ICache(**_get_cache_opts("l1i", args))
+    system.l1d = L1_DCache(**_get_cache_opts("l1d", args))
+
+    system.cpu.dcache_port = system.l1d.cpu_side
+    system.cpu.icache_port = system.l1i.cpu_side
+
+    if args.l2cache:
+        # Provide a clock for the L2 and the L1-to-L2 bus here as they
+        # are not connected using addTwoLevelCacheHierarchy. Use the
+        # same clock as the CPUs.
+        system.l2 = L2Cache(
+            clk_domain=system.cpu_clk_domain, **_get_cache_opts("l2", args)
+        )
+
+        system.tol2bus = L2XBar(clk_domain=system.cpu_clk_domain)
+        system.l2.cpu_side = system.tol2bus.mem_side_ports
+        system.l2.mem_side = system.membus.cpu_side_ports
+
+        system.l1i.mem_side = system.tol2bus.cpu_side_ports
+        system.l1d.mem_side = system.tol2bus.cpu_side_ports
+    else:
+        system.l1i.mem_side = system.membus.cpu_side_ports
+        system.l1d.mem_side = system.membus.cpu_side_ports
+
 
 parser = argparse.ArgumentParser()
 Options.addCommonOptions(parser)
 
-if '--ruby' in sys.argv:
-    print("This script does not support Ruby configuration, mainly"
-    " because Trace CPU has been tested only with classic memory system")
+if "--ruby" in sys.argv:
+    print(
+        "This script does not support Ruby configuration, mainly"
+        " because Trace CPU has been tested only with classic memory system"
+    )
     sys.exit(1)
 
 args = parser.parse_args()
 
-numThreads = 1
-
-if args.cpu_type != "TraceCPU":
-    fatal("This is a script for elastic trace replay simulation, use "\
-            "--cpu-type=TraceCPU\n");
-
 if args.num_cpus > 1:
     fatal("This script does not support multi-processor trace replay.\n")
 
-# In this case FutureClass will be None as there is not fast forwarding or
-# switching
-(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(args)
-CPUClass.numThreads = numThreads
+system = System(
+    mem_mode=TraceCPU.memory_mode(),
+    mem_ranges=[AddrRange(args.mem_size)],
+    cache_line_size=args.cacheline_size,
+)
 
-system = System(cpu = CPUClass(cpu_id=0),
-                mem_mode = test_mem_mode,
-                mem_ranges = [AddrRange(args.mem_size)],
-                cache_line_size = args.cacheline_size)
+# Generate the TraceCPU
+system.cpu = TraceCPU()
 
 # Create a top-level voltage domain
-system.voltage_domain = VoltageDomain(voltage = args.sys_voltage)
+system.voltage_domain = VoltageDomain(voltage=args.sys_voltage)
 
 # Create a source clock for the system. This is used as the clock period for
 # xbar and memory
-system.clk_domain = SrcClockDomain(clock =  args.sys_clock,
-                                   voltage_domain = system.voltage_domain)
+system.clk_domain = SrcClockDomain(
+    clock=args.sys_clock, voltage_domain=system.voltage_domain
+)
 
 # Create a CPU voltage domain
 system.cpu_voltage_domain = VoltageDomain()
 
 # Create a separate clock domain for the CPUs. In case of Trace CPUs this clock
 # is actually used only by the caches connected to the CPU.
-system.cpu_clk_domain = SrcClockDomain(clock = args.cpu_clock,
-                                       voltage_domain =
-                                       system.cpu_voltage_domain)
+system.cpu_clk_domain = SrcClockDomain(
+    clock=args.cpu_clock, voltage_domain=system.cpu_voltage_domain
+)
 
 # All cpus belong to a common cpu_clk_domain, therefore running at a common
 # frequency.
 for cpu in system.cpu:
     cpu.clk_domain = system.cpu_clk_domain
 
-# BaseCPU no longer has default values for the BaseCPU.isa
-# createThreads() is needed to fill in the cpu.isa
-for cpu in system.cpu:
-    cpu.createThreads()
-
 # Assign input trace files to the Trace CPU
-system.cpu.instTraceFile=args.inst_trace_file
-system.cpu.dataTraceFile=args.data_trace_file
+system.cpu.instTraceFile = args.inst_trace_file
+system.cpu.dataTraceFile = args.data_trace_file
 
 # Configure the classic memory system args
 MemClass = Simulation.setMemClass(args)
 system.membus = SystemXBar()
 system.system_port = system.membus.cpu_side_ports
-CacheConfig.config_cache(args, system)
+
+# Configure the classic cache hierarchy
+config_cache(args, system)
+
 MemConfig.config_mem(args, system)
 
-root = Root(full_system = False, system = system)
-Simulation.run(args, root, system, FutureClass)
+root = Root(full_system=False, system=system)
+Simulation.run(args, root, system, None)

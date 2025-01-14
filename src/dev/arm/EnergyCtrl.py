@@ -33,21 +33,23 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.SimObject import SimObject
 from m5.objects.Device import BasicPioDevice
+from m5.params import *
 from m5.proxy import *
+from m5.SimObject import SimObject
 from m5.util.fdthelper import *
 
+
 class EnergyCtrl(BasicPioDevice):
-    type = 'EnergyCtrl'
+    type = "EnergyCtrl"
     cxx_header = "dev/arm/energy_ctrl.hh"
-    cxx_class = 'gem5::EnergyCtrl'
+    cxx_class = "gem5::EnergyCtrl"
     dvfs_handler = Param.DVFSHandler(Parent.dvfs_handler, "DVFS handler")
 
     def generateDeviceTree(self, state):
-        node = self.generateBasicPioDeviceNode(state, 'gem5_energy_ctrl',
-            self.pio_addr, 0x1000)
+        node = self.generateBasicPioDeviceNode(
+            state, "gem5_energy_ctrl", self.pio_addr, 0x1000
+        )
 
         node.appendCompatible("arm,gem5-energy-ctrl")
 

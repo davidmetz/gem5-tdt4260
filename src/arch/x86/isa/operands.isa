@@ -58,7 +58,7 @@ let {{
         @overrideInOperand
         def regId(self):
             return f'(({self.reg_spec}) == gem5::X86ISA::int_reg::T0) ? ' \
-                   f'RegId() : RegId({self.reg_class}, {self.reg_spec})'
+                   f'RegId() : {self.reg_class}[{self.reg_spec}]'
         def __init__(self, idx, id, data_size='dataSize', *args, **kwargs):
             super().__init__('uqw', idx, 'IsInteger', id, *args, **kwargs)
             self.attrs['data_size'] = data_size
@@ -165,8 +165,9 @@ def operands {{
         'R9':            IntReg('X86ISA::int_reg::R9', 21),
         'FpSrcReg1':     FloatReg('src1', 22),
         'FpSrcReg2':     FloatReg('src2', 23),
-        'FpDestReg':     FloatReg('dest', 24),
-        'FpData':        FloatReg('data', 25),
+        'FpSrcReg3':     FloatReg('src3', 24),
+        'FpDestReg':     FloatReg('dest', 25),
+        'FpData':        FloatReg('data', 26),
         'RIP':           PCStateOp('uqw', 'pc',
                           (None, None, 'IsControl'), 50),
         'NRIP':          PCStateOp('uqw', 'npc',

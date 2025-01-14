@@ -33,14 +33,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-categories = ["convert_floating_point_to_floating_point",
-              "convert_floating_point_to_xmm_integer",
-              "convert_floating_point_to_mmx_integer",
-              "convert_floating_point_to_gpr_integer"]
+categories = [
+    "convert_floating_point_to_floating_point",
+    "convert_floating_point_to_xmm_integer",
+    "convert_floating_point_to_mmx_integer",
+    "convert_floating_point_to_gpr_integer",
+    "round",
+]
 
-microcode = '''
+microcode = """
 # SSE instructions
-'''
+"""
 for category in categories:
-    exec("from . import %s as cat" % category)
+    exec(f"from . import {category} as cat")
     microcode += cat.microcode

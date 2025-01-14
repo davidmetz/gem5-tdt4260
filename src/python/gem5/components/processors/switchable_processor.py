@@ -25,34 +25,36 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from .simple_core import SimpleCore
-from .abstract_core import AbstractCore
-from .cpu_types import CPUTypes
+from typing import (
+    Dict,
+    List,
+)
 
 import m5
+from m5.objects import Root
 
-from typing import Dict, Any, List
-
-from .abstract_processor import AbstractProcessor
-from ..boards.abstract_board import AbstractBoard
 from ...utils.override import *
+from ..boards.abstract_board import AbstractBoard
+from .abstract_core import AbstractCore
+from .abstract_processor import AbstractProcessor
+from .cpu_types import CPUTypes
+from .simple_core import SimpleCore
 
 
 class SwitchableProcessor(AbstractProcessor):
     """
     This class can be used to setup a switchable processor/processors on a
-    system.
+    system using SimpleCores.
 
     Though this class can be used directly, it is best inherited from. See
-    "SimpleSwitchableCPU" for an example of this.
+    SimpleSwitchableCPU for an example of this.
     """
 
     def __init__(
         self,
-        switchable_cores: Dict[Any, List[SimpleCore]],
-        starting_cores: Any,
+        switchable_cores: Dict[str, List[SimpleCore]],
+        starting_cores: str,
     ) -> None:
-
         if starting_cores not in switchable_cores.keys():
             raise AssertionError(
                 f"Key {starting_cores} cannot be found in the "
@@ -62,31 +64,29 @@ class SwitchableProcessor(AbstractProcessor):
         self._current_cores = switchable_cores[starting_cores]
         self._switchable_cores = switchable_cores
 
-        all_cores = []
-        for core_list in self._switchable_cores.values():
+        # In the stdlib we assume the system processor conforms to a single
+        # ISA target.
+        assert len({core.get_isa() for core in self._current_cores}) == 1
+        super().__init__(isa=self._current_cores[0].get_isa())
+
+        for name, core_list in self._switchable_cores.items():
+            # Use the names from the user as the member variables
+            # This makes the stats print more nicely.
+            setattr(self, name, core_list)
             for core in core_list:
                 core.set_switched_out(core not in self._current_cores)
-                all_cores.append(core)
 
-        self._prepare_kvm = CPUTypes.KVM in [
-            core.get_type() for core in all_cores
-        ]
+        self._prepare_kvm = any(
+            core.is_kvm_core() for core in self._all_cores()
+        )
 
         if self._prepare_kvm:
-            if all_cores[0].get_type() != CPUTypes.KVM:
-                raise Exception(
-                    "When using KVM, the switchable processor must start "
-                    "with the KVM cores."
-                )
             from m5.objects import KvmVM
 
             self.kvm_vm = KvmVM()
 
-        super().__init__(cores=all_cores)
-
     @overrides(AbstractProcessor)
     def incorporate_processor(self, board: AbstractBoard) -> None:
-
         # This is a bit of a hack. The `m5.switchCpus` function, used in the
         # "switch_to_processor" function, requires the System simobject as an
         # argument. We therefore need to store the board when incorporating the
@@ -94,12 +94,10 @@ class SwitchableProcessor(AbstractProcessor):
         self._board = board
 
         if self._prepare_kvm:
-            board.kvm_vm = self.kvm_vm
-
             # To get the KVM CPUs to run on different host CPUs
             # Specify a different event queue for each CPU
             kvm_cores = [
-                core for core in self.cores if core.get_type() == CPUTypes.KVM
+                core for core in self._all_cores() if core.is_kvm_core()
             ]
             for i, core in enumerate(kvm_cores):
                 for obj in core.get_simobject().descendants():
@@ -116,8 +114,11 @@ class SwitchableProcessor(AbstractProcessor):
     def get_cores(self) -> List[AbstractCore]:
         return self._current_cores
 
-    def switch_to_processor(self, switchable_core_key: Any):
+    def _all_cores(self):
+        for core_list in self._switchable_cores.values():
+            yield from core_list
 
+    def switch_to_processor(self, switchable_core_key: str):
         # Run various checks.
         if not hasattr(self, "_board"):
             raise AssertionError("The processor has not been incorporated.")
@@ -150,9 +151,29 @@ class SwitchableProcessor(AbstractProcessor):
 
         # Switch the CPUs
         m5.switchCpus(
-            self._board,
-            list(zip(current_core_simobj, to_switch_simobj)),
+            self._board, list(zip(current_core_simobj, to_switch_simobj))
         )
 
         # Ensure the current processor is updated.
         self._current_cores = to_switch
+
+    def _pre_instantiate(self, root: Root) -> None:
+        super()._pre_instantiate(root)
+        # The following is a bit of a hack. If a simulation is to use a KVM
+        # core then the `sim_quantum` value must be set. However, in the
+        # case of using a SwitchableProcessor the KVM cores may be
+        # switched out and therefore not accessible via `get_cores()`.
+        # This is the reason for the `isinstance` check.
+        #
+        # We cannot set the `sim_quantum` value in every simulation as
+        # setting it causes the scheduling of exits to be off by the
+        # `sim_quantum` value (something necessary if we are using KVM
+        # cores). Ergo we only set the value of KVM cores are present.
+        #
+        # There is still a bug here in that if the user is switching to and
+        # from KVM and non-KVM cores via the SwitchableProcessor then the
+        # scheduling of exits for the non-KVM cores will be incorrect. This
+        # will be fixed at a later date.
+        if self._prepare_kvm:
+            m5.ticks.fixGlobalFrequency()
+            root.sim_quantum = m5.ticks.fromSeconds(0.001)

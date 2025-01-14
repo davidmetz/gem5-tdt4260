@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 ARM Limited
+# Copyright (c) 2012-2013, 2023-2024 ARM Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -33,16 +33,40 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.proxy import *
 from m5.objects.ClockedObject import ClockedObject
 from m5.objects.IndexingPolicies import *
+from m5.params import *
+from m5.proxy import *
+
+
+class TaggedIndexingPolicy(SimObject):
+    type = "TaggedIndexingPolicy"
+    abstract = True
+    cxx_class = "gem5::IndexingPolicyTemplate<gem5::TaggedTypes>"
+    cxx_header = "mem/cache/tags/tagged_entry.hh"
+    cxx_template_params = ["class Types"]
+
+    # Get the associativity
+    assoc = Param.Int(Parent.assoc, "associativity")
+
+
+class TaggedSetAssociative(TaggedIndexingPolicy):
+    type = "TaggedSetAssociative"
+    cxx_class = "gem5::TaggedSetAssociative"
+    cxx_header = "mem/cache/tags/tagged_entry.hh"
+
+    # Get the size from the parent (cache)
+    size = Param.MemorySize(Parent.size, "capacity in bytes")
+
+    # Get the entry size from the parent (tags)
+    entry_size = Param.Int(Parent.entry_size, "entry size in bytes")
+
 
 class BaseTags(ClockedObject):
-    type = 'BaseTags'
+    type = "BaseTags"
     abstract = True
     cxx_header = "mem/cache/tags/base.hh"
-    cxx_class = 'gem5::BaseTags'
+    cxx_class = "gem5::BaseTags"
 
     # Get system to which it belongs
     system = Param.System(Parent.any, "System we belong to")
@@ -54,62 +78,79 @@ class BaseTags(ClockedObject):
     block_size = Param.Int(Parent.cache_line_size, "block size in bytes")
 
     # Get the tag lookup latency from the parent (cache)
-    tag_latency = Param.Cycles(Parent.tag_latency,
-                               "The tag lookup latency for this cache")
+    tag_latency = Param.Cycles(
+        Parent.tag_latency, "The tag lookup latency for this cache"
+    )
 
     # Get the warmup percentage from the parent (cache)
-    warmup_percentage = Param.Percent(Parent.warmup_percentage,
-        "Percentage of tags to be touched to warm up the cache")
+    warmup_percentage = Param.Percent(
+        Parent.warmup_percentage,
+        "Percentage of tags to be touched to warm up the cache",
+    )
 
-    sequential_access = Param.Bool(Parent.sequential_access,
-        "Whether to access tags and data sequentially")
+    sequential_access = Param.Bool(
+        Parent.sequential_access,
+        "Whether to access tags and data sequentially",
+    )
 
     # Get indexing policy
-    indexing_policy = Param.BaseIndexingPolicy(SetAssociative(),
-        "Indexing policy")
+    indexing_policy = Param.TaggedIndexingPolicy(
+        TaggedSetAssociative(), "Indexing policy"
+    )
+
+    partitioning_manager = Param.PartitionManager(
+        Parent.partitioning_manager, "Cache partitioning manager"
+    )
 
     # Set the indexing entry size as the block size
-    entry_size = Param.Int(Parent.cache_line_size,
-                           "Indexing entry size in bytes")
+    entry_size = Param.Int(
+        Parent.cache_line_size, "Indexing entry size in bytes"
+    )
+
 
 class BaseSetAssoc(BaseTags):
-    type = 'BaseSetAssoc'
+    type = "BaseSetAssoc"
     cxx_header = "mem/cache/tags/base_set_assoc.hh"
-    cxx_class = 'gem5::BaseSetAssoc'
+    cxx_class = "gem5::BaseSetAssoc"
 
     # Get the cache associativity
     assoc = Param.Int(Parent.assoc, "associativity")
 
     # Get replacement policy from the parent (cache)
     replacement_policy = Param.BaseReplacementPolicy(
-        Parent.replacement_policy, "Replacement policy")
+        Parent.replacement_policy, "Replacement policy"
+    )
+
 
 class SectorTags(BaseTags):
-    type = 'SectorTags'
+    type = "SectorTags"
     cxx_header = "mem/cache/tags/sector_tags.hh"
-    cxx_class = 'gem5::SectorTags'
+    cxx_class = "gem5::SectorTags"
 
     # Get the cache associativity
     assoc = Param.Int(Parent.assoc, "associativity")
 
     # Number of sub-sectors (data blocks) per sector
-    num_blocks_per_sector = Param.Int(1, "Number of sub-sectors per sector");
+    num_blocks_per_sector = Param.Int(1, "Number of sub-sectors per sector")
 
     # The indexing entry now is a sector block
     entry_size = Parent.cache_line_size * Self.num_blocks_per_sector
 
     # Get replacement policy from the parent (cache)
     replacement_policy = Param.BaseReplacementPolicy(
-        Parent.replacement_policy, "Replacement policy")
+        Parent.replacement_policy, "Replacement policy"
+    )
+
 
 class CompressedTags(SectorTags):
-    type = 'CompressedTags'
+    type = "CompressedTags"
     cxx_header = "mem/cache/tags/compressed_tags.hh"
-    cxx_class = 'gem5::CompressedTags'
+    cxx_class = "gem5::CompressedTags"
 
     # Maximum number of compressed blocks per tag
-    max_compression_ratio = Param.Int(2,
-        "Maximum number of compressed blocks per tag.")
+    max_compression_ratio = Param.Int(
+        2, "Maximum number of compressed blocks per tag."
+    )
 
     # We simulate superblock as sector blocks
     num_blocks_per_sector = Self.max_compression_ratio
@@ -118,13 +159,15 @@ class CompressedTags(SectorTags):
     # the cache size by the compression ratio
     size = Parent.size * Self.max_compression_ratio
 
-class FALRU(BaseTags):
-    type = 'FALRU'
-    cxx_header = "mem/cache/tags/fa_lru.hh"
-    cxx_class = 'gem5::FALRU'
 
-    min_tracked_cache_size = Param.MemorySize("128KiB", "Minimum cache size"
-                                              " for which we track statistics")
+class FALRU(BaseTags):
+    type = "FALRU"
+    cxx_header = "mem/cache/tags/fa_lru.hh"
+    cxx_class = "gem5::FALRU"
+
+    min_tracked_cache_size = Param.MemorySize(
+        "128KiB", "Minimum cache size for which we track statistics"
+    )
 
     # This tag uses its own embedded indexing
     indexing_policy = NULL

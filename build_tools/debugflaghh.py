@@ -44,84 +44,100 @@ parser = argparse.ArgumentParser()
 parser.add_argument("hh", help="the path of the debug flag header file")
 parser.add_argument("name", help="the name of the debug flag")
 parser.add_argument("desc", help="a description of the debug flag")
-parser.add_argument("fmt",
-        help="whether the flag is a format flag (True or False)")
-parser.add_argument("components",
-        help="components of a compound flag, if applicable, joined with :")
+parser.add_argument(
+    "fmt", help="whether the flag is a format flag (True or False)"
+)
+parser.add_argument(
+    "components",
+    help="components of a compound flag, if applicable, joined with :",
+)
 
 args = parser.parse_args()
 
 fmt = args.fmt.lower()
-if fmt == 'true':
+if fmt == "true":
     fmt = True
-elif fmt == 'false':
+elif fmt == "false":
     fmt = False
 else:
     print(f'Unrecognized "FMT" value {fmt}', file=sys.stderr)
     sys.exit(1)
-components = args.components.split(':') if args.components else []
+components = args.components.split(":") if args.components else []
 
 code = code_formatter()
 
-code('''
+code(
+    """
 #ifndef __DEBUG_${{args.name}}_HH__
 #define __DEBUG_${{args.name}}_HH__
 
 #include "base/compiler.hh" // For namespace deprecation
 #include "base/debug.hh"
-''')
+"""
+)
 for flag in components:
     code('#include "debug/${flag}.hh"')
-code('''
+code(
+    """
 namespace gem5
 {
 
-GEM5_DEPRECATED_NAMESPACE(Debug, debug);
 namespace debug
 {
 
 namespace unions
 {
-''')
+"""
+)
 
 # Use unions to prevent debug flags from being destructed. It's the
 # responsibility of the programmer to handle object destruction for members
 # of the union. We purposefully leave that destructor empty so that we can
 # use debug flags even in the destructors of other objects.
 if components:
-    code('''
+    code(
+        """
 inline union ${{args.name}}
 {
     ~${{args.name}}() {}
-    CompoundFlag ${{args.name}} = {
-        "${{args.name}}", "${{args.desc}}", {
+
+    CompoundFlag flag${{args.name}};
+
+    ${{args.name}}() : flag${{args.name}}("${{args.name}}", "${{args.desc}}",
+        {
             ${{",\\n            ".join(
                 f"(Flag *)&::gem5::debug::{flag}" for flag in components)}}
-        }
-    };
-} ${{args.name}};
-''')
+        }) {}
+
+} instance${{args.name}};
+"""
+    )
 else:
-    code('''
+    code(
+        """
 inline union ${{args.name}}
 {
     ~${{args.name}}() {}
-    SimpleFlag ${{args.name}} = {
-        "${{args.name}}", "${{args.desc}}", ${{"true" if fmt else "false"}}
-    };
-} ${{args.name}};
-''')
+    SimpleFlag flag${{args.name}};
 
-code('''
+    ${{args.name}}() : flag${{args.name}}("${{args.name}}", "${{args.desc}}", ${{"true" if fmt else "false"}}) {}
+
+} instance${{args.name}};
+"""
+    )
+
+code(
+    """
 } // namespace unions
 
-inline constexpr const auto& ${{args.name}} = 
-    ::gem5::debug::unions::${{args.name}}.${{args.name}};
+inline constexpr const auto& ${{args.name}} =
+    ::gem5::debug::unions::instance${{args.name}}.flag${{args.name}};
 
 } // namespace debug
 } // namespace gem5
 
 #endif // __DEBUG_${{args.name}}_HH__
-''')
+"""
+)
 
 code.write(args.hh)

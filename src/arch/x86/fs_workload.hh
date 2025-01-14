@@ -55,7 +55,6 @@ namespace gem5
 namespace X86ISA
 {
 
-GEM5_DEPRECATED_NAMESPACE(SMBios, smbios);
 namespace smbios
 {
 
@@ -63,7 +62,6 @@ class SMBiosTable;
 
 } // namespace smbios
 
-GEM5_DEPRECATED_NAMESPACE(IntelMP, intelmp);
 namespace intelmp
 {
 
@@ -78,7 +76,7 @@ void installSegDesc(ThreadContext *tc, int seg, SegDescriptor desc,
 class FsWorkload : public KernelWorkload
 {
   public:
-    using Params = X86FsWorkloadParams;
+    PARAMS(X86FsWorkload);
     FsWorkload(const Params &p);
 
   public:
@@ -88,7 +86,8 @@ class FsWorkload : public KernelWorkload
     setSystem(System *sys) override
     {
         KernelWorkload::setSystem(sys);
-        gdb = BaseRemoteGDB::build<RemoteGDB>(system);
+        gdb = BaseRemoteGDB::build<RemoteGDB>(
+                params().remote_gdb_port, system);
     }
 
     ByteOrder byteOrder() const override { return ByteOrder::little; }
@@ -107,6 +106,9 @@ class FsWorkload : public KernelWorkload
             Addr &fpSize, Addr &tableSize, Addr table=0);
 
     void writeOutACPITables(Addr begin, Addr &size);
+
+  private:
+    bool enable_osxsave;
 };
 
 } // namespace X86ISA

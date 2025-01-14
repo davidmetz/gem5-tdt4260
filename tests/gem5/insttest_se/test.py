@@ -42,7 +42,7 @@ for isa in test_progs:
     for binary in test_progs[isa]:
         ref_path = joinpath(getcwd(), "ref")
         verifiers = (
-            verifier.MatchStdoutNoPerf(joinpath(ref_path, "simout")),
+            verifier.MatchStdoutNoPerf(joinpath(ref_path, "simout.txt")),
         )
 
         for cpu in cpu_types[isa]:
@@ -54,6 +54,7 @@ for isa in test_progs:
                     config.base_dir,
                     "tests",
                     "gem5",
+                    "insttest_se",
                     "configs",
                     "simple_binary_run.py",
                 ),
@@ -64,6 +65,6 @@ for isa in test_progs:
                     resource_path,
                     "sparc",
                 ],
-                valid_isas=(isa,),
+                valid_isas=(constants.all_compiled_tag,),
                 length=constants.long_tag,
             )

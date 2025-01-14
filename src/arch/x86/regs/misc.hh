@@ -42,6 +42,8 @@
 #include "arch/x86/x86_traits.hh"
 #include "base/bitunion.hh"
 #include "base/logging.hh"
+#include "cpu/reg_class.hh"
+#include "debug/MiscRegs.hh"
 
 //These get defined in some system headers (at least termbits.h). That confuses
 //things here significantly.
@@ -403,6 +405,9 @@ enum : RegIndex
     // "Fake" MSRs for internally implemented devices
     PciConfigAddress,
 
+    XcrBase,
+    Xcr0 = XcrBase,
+
     NumRegs
 };
 
@@ -420,6 +425,13 @@ cr(int index)
 {
     assert(index >= 0 && index < NumCRegs);
     return CrBase + index;
+}
+
+static inline RegIndex
+xcr(int index)
+{
+    assert(index >= 0 && index < NumXCRegs);
+    return XcrBase + index;
 }
 
 static inline RegIndex
@@ -536,6 +548,9 @@ segAttr(int index)
 
 } // namespace misc_reg
 
+inline constexpr RegClass miscRegClass(MiscRegClass, MiscRegClassName,
+        misc_reg::NumRegs, debug::MiscRegs);
+
 /**
  * A type to describe the condition code bits of the RFLAGS register,
  * plus two flags, EZF and ECF, which are only visible to microcode.
@@ -616,12 +631,14 @@ BitUnion64(CR3)
                            // Base Address
     Bitfield<31, 5> paePdtb; // PAE Addressing Page-Directory-Table
                              // Base Address
+    Bitfield<11, 0> pcid; // Process-Context Identifier
     Bitfield<4> pcd; // Page-Level Cache Disable
     Bitfield<3> pwt; // Page-Level Writethrough
 EndBitUnion(CR3)
 
 BitUnion64(CR4)
     Bitfield<18> osxsave; // Enable XSAVE and Proc Extended States
+    Bitfield<17> pcide; // PCID Enable
     Bitfield<16> fsgsbase; // Enable RDFSBASE, RDGSBASE, WRFSBASE,
                            // WRGSBASE instructions
     Bitfield<10> osxmmexcpt; // Operating System Unmasked
@@ -641,6 +658,24 @@ EndBitUnion(CR4)
 BitUnion64(CR8)
     Bitfield<3, 0> tpr; // Task Priority Register
 EndBitUnion(CR8)
+
+BitUnion64(XCR0)
+    Bitfield<0> x87; // x87 FPU/MMX support (must be 1)
+    Bitfield<1> sse; // XSAVE support for MXCSR and XMM registers
+    Bitfield<2> avx; // AVX enabled and XSAVE support for upper halves of YMM
+                     // registers
+    Bitfield<3> bndreg; // MPX enabled and XSAVE support for BND0-BND3
+                        // registers
+    Bitfield<4> bndsrc; // MPX enabled and XSAVE support for BNDCFGU and
+                        // BNDSTATUS registers
+    Bitfield<5> opmask; // AVX-512 enabled and XSAVE support for opmask
+                        // registers k0-k7
+    Bitfield<6> zmm_hi256; // AVX-512 enabled and XSAVE support for upper
+                           // halves of lower ZMM registers
+    Bitfield<7> hi16_zmm; // AVX-512 enabled and XSAVE support for upper ZMM
+                          // registers
+    Bitfield<9> pkru; // XSAVE support for PKRU register
+EndBitUnion(XCR0)
 
 BitUnion64(DR6)
     Bitfield<0> b0;

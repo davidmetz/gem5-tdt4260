@@ -32,31 +32,40 @@
 import os
 import re
 import sys
-from maint.lib import maintainers
 
+from maint.lib import maintainers
 from style.repo import GitRepo
+
 
 def _printErrorQuit(error_message):
     """
-        Print an error message, followed my a help message and inform failure.
+    Print an error message, followed my a help message and inform failure.
 
-        @param error_message A message describing the error that caused the
-            failure.
+    @param error_message A message describing the error that caused the
+        failure.
     """
     print(error_message)
 
-    print("The commit has been cancelled, but a copy of it can be found in "
-          + sys.argv[1] + " : ")
+    print(
+        "The commit has been cancelled, but a copy of it can be found in "
+        + sys.argv[1]
+        + " : "
+    )
 
-    print("""
+    print(
+        """
 --------------------------------------------------------------------------
-    """)
-    print(open(sys.argv[1], "r").read())
-    print("""
+    """
+    )
+    print(open(sys.argv[1]).read())
+    print(
+        """
 --------------------------------------------------------------------------
-    """)
+    """
+    )
 
-    print("""
+    print(
+        """
 The first line of a commit must contain one or more gem5 tags separated by
 commas (see MAINTAINERS.yaml for the possible tags), followed by a colon and
 a commit title. There must be no leading nor trailing whitespaces.
@@ -74,29 +83,31 @@ e.g.:
     mem,mem-cache: Improve packet class readability
 
     The packet class...
-""")
+"""
+    )
     sys.exit(1)
+
 
 def _validateTags(commit_header):
     """
-        Check if all tags in the commit header belong to the list of valid
-        gem5 tags.
+    Check if all tags in the commit header belong to the list of valid
+    gem5 tags.
 
-        @param commit_header The first line of the commit message.
+    @param commit_header The first line of the commit message.
     """
 
     # List of valid tags
     maintainer_dict = maintainers.Maintainers.from_file()
     valid_tags = [tag for tag, _ in maintainer_dict]
 
-    # Remove non-tag 'pmc' and add special tags not in MAINTAINERS.yaml
-    valid_tags.remove('pmc')
-    valid_tags.extend(['RFC', 'WIP'])
+    # Add special tags not in MAINTAINERS.yaml
+    valid_tags.extend(["RFC", "WIP"])
 
-    tags = ''.join(commit_header.split(':')[0].split()).split(',')
-    if (any(tag not in valid_tags for tag in tags)):
-        invalid_tag = next((tag for tag in tags if tag not in valid_tags))
+    tags = "".join(commit_header.split(":")[0].split()).split(",")
+    if any(tag not in valid_tags for tag in tags):
+        invalid_tag = next(tag for tag in tags if tag not in valid_tags)
         _printErrorQuit("Invalid Gem5 tag: " + invalid_tag)
+
 
 # Go to git directory
 os.chdir(GitRepo().repo_base())
@@ -106,11 +117,17 @@ commit_message = open(sys.argv[1]).read()
 
 # The first line of a commit must contain at least one valid gem5 tag, and
 # a commit title
-commit_message_lines = commit_message.splitlines()
+commit_message_lines = []
+for line in commit_message.splitlines():
+    if line.lstrip().startswith("#"):
+        # We don't care about any comment lines (lines starting with #).
+        continue
+    commit_message_lines.append(line)
 commit_header = commit_message_lines[0]
-commit_header_match = \
-    re.search("^(fixup! )?(\S[\w\-][,\s*[\w\-]+]*:.+\S$)", commit_header)
-if ((commit_header_match is None)):
+commit_header_match = re.search(
+    r"^(fixup! )?(\S[\w\-][,\s*[\w\-]+]*:.+\S$)", commit_header
+)
+if commit_header_match is None:
     _printErrorQuit("Invalid commit header")
 if commit_header_match.group(1) == "fixup! ":
     sys.exit(0)
@@ -119,21 +136,31 @@ _validateTags(commit_header_match.group(2))
 # Make sure commit title does not exceed threshold. This line is limited to
 # a smaller number because version control systems may add a prefix, causing
 # line-wrapping for longer lines
-commit_title = commit_header.split(':')[1]
+commit_title = commit_header.split(":")[1]
 max_header_size = 65
-if (len(commit_header) > max_header_size):
-    _printErrorQuit("The commit header (tags + title) is too long (" + \
-        str(len(commit_header)) + " > " + str(max_header_size) + ")")
+if len(commit_header) > max_header_size:
+    _printErrorQuit(
+        "The commit header (tags + title) is too long ("
+        + str(len(commit_header))
+        + " > "
+        + str(max_header_size)
+        + ")"
+    )
 
-# Then there must be at least one empty line between the commit header and
-# the commit description
-if (commit_message_lines[1] != ""):
-    _printErrorQuit("Please add an empty line between the commit title and " \
-        "its description")
+if len(commit_message_lines) > 1:
+    # Then there must be at least one empty line between the commit header and
+    # the commit description
+    if commit_message_lines[1] != "":
+        _printErrorQuit(
+            "Please add an empty line between the commit title and "
+            "its description"
+        )
 
-# Encourage providing descriptions
-if (re.search("^(Signed-off-by|Change-Id|Reviewed-by):",
-    commit_message_lines[2])):
-    print("Warning: Commit does not have a description")
+    # Encourage providing descriptions
+    if len(commit_message_lines) > 2:
+        if re.search(
+            "^(Signed-off-by|Change-Id|Reviewed-by):", commit_message_lines[2]
+        ):
+            print("Warning: Commit does not have a description")
 
 sys.exit(0)

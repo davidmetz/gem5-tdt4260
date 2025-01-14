@@ -33,24 +33,95 @@
 
 #include "systemc/tlm_bridge/sc_ext.hh"
 
+#include <optional>
+
 #include "systemc/ext/utils/sc_report_handler.hh"
+#include "systemc/tlm_bridge/gem5_to_tlm.hh"
+#include "systemc/tlm_bridge/tlm_to_gem5.hh"
 
 using namespace gem5;
 
 namespace Gem5SystemC
 {
-
-Gem5Extension::Gem5Extension(PacketPtr _packet)
+namespace
 {
-    packet = _packet;
+
+struct ControlConversionRegister
+{
+    ControlConversionRegister()
+    {
+        sc_gem5::addPayloadToPacketConversionStep(
+            [] (PacketPtr pkt, tlm::tlm_generic_payload &trans)
+            {
+                ControlExtension *control_ex = nullptr;
+                trans.get_extension(control_ex);
+                if (!control_ex) {
+                    return;
+                }
+
+                if (control_ex->isPrivileged()) {
+                    pkt->req->setFlags(Request::PRIVILEGED);
+                } else {
+                    pkt->req->clearFlags(Request::PRIVILEGED);
+                }
+
+                if (control_ex->isSecure()) {
+                    pkt->req->setFlags(Request::SECURE);
+                } else {
+                    pkt->req->clearFlags(Request::SECURE);
+                }
+
+                if (control_ex->isInstruction()) {
+                    pkt->req->setFlags(Request::INST_FETCH);
+                } else {
+                    pkt->req->clearFlags(Request::INST_FETCH);
+                }
+
+                pkt->qosValue(control_ex->getQos());
+
+                if (control_ex->hasStreamId()) {
+                    pkt->req->setStreamId(control_ex->getStreamId().value());
+                }
+                if (control_ex->hasSubstreamId()) {
+                    pkt->req->setSubstreamId(
+                        control_ex->getSubstreamId().value());
+                }
+            });
+        sc_gem5::addPacketToPayloadConversionStep(
+            [] (PacketPtr pkt, tlm::tlm_generic_payload &trans)
+            {
+                ControlExtension *control_ex = nullptr;
+                trans.get_extension(control_ex);
+                if (!control_ex) {
+                    return;
+                }
+
+                control_ex->setPrivileged(pkt->req->isPriv());
+                control_ex->setSecure(pkt->req->isSecure());
+                control_ex->setInstruction(pkt->req->isInstFetch());
+                control_ex->setQos(pkt->qosValue());
+                if (pkt->req->hasStreamId()) {
+                    control_ex->setStreamId(pkt->req->streamId());
+                }
+                if (pkt->req->hasSubstreamId()) {
+                    control_ex->setSubstreamId(pkt->req->substreamId());
+                }
+            });
+    }
+};
+
+} // namespace
+
+Gem5Extension::Gem5Extension(PacketPtr p) : packet(p)
+{
 }
 
 Gem5Extension &
 Gem5Extension::getExtension(const tlm::tlm_generic_payload *payload)
 {
-    Gem5Extension *result = NULL;
+    Gem5Extension *result = nullptr;
     payload->get_extension(result);
-    sc_assert(result != NULL);
+    sc_assert(result != nullptr);
     return *result;
 }
 
@@ -75,13 +146,13 @@ Gem5Extension::clone() const
 void
 Gem5Extension::copy_from(const tlm::tlm_extension_base &ext)
 {
-    const Gem5Extension &cpyFrom = static_cast<const Gem5Extension &>(ext);
-    packet = cpyFrom.packet;
+    const Gem5Extension &from = static_cast<const Gem5Extension &>(ext);
+    packet = from.packet;
 }
 
 AtomicExtension::AtomicExtension(
-    std::shared_ptr<gem5::AtomicOpFunctor> amo_op, bool need_return)
-  : _op(amo_op), _needReturn(need_return)
+    std::shared_ptr<gem5::AtomicOpFunctor> o, bool r)
+    : op(o), returnRequired(r)
 {
 }
 
@@ -114,15 +185,134 @@ AtomicExtension::getExtension(const tlm::tlm_generic_payload *payload)
 }
 
 bool
-AtomicExtension::needReturn() const
+AtomicExtension::isReturnRequired() const
 {
-    return _needReturn;
+    return returnRequired;
 }
 
 gem5::AtomicOpFunctor*
 AtomicExtension::getAtomicOpFunctor() const
 {
-    return _op.get();
+    return op.get();
 }
 
-} // namespace Gem5SystemC
+ControlExtension::ControlExtension()
+    : privileged(false), secure(false), instruction(false), qos(0)
+{
+    [[maybe_unused]] static ControlConversionRegister *conversion_register =
+        new ControlConversionRegister();
+}
+
+tlm::tlm_extension_base *
+ControlExtension::clone() const
+{
+    return new ControlExtension(*this);
+}
+
+void
+ControlExtension::copy_from(const tlm::tlm_extension_base &ext)
+{
+    const ControlExtension &from = static_cast<const ControlExtension &>(ext);
+    *this = from;
+}
+
+ControlExtension &
+ControlExtension::getExtension(const tlm::tlm_generic_payload &payload)
+{
+    return ControlExtension::getExtension(&payload);
+}
+
+ControlExtension &
+ControlExtension::getExtension(const tlm::tlm_generic_payload *payload)
+{
+    ControlExtension *result = nullptr;
+    payload->get_extension(result);
+    sc_assert(result);
+    return *result;
+}
+
+bool
+ControlExtension::isPrivileged() const
+{
+    return privileged;
+}
+
+void
+ControlExtension::setPrivileged(bool p)
+{
+    privileged = p;
+}
+
+bool
+ControlExtension::isSecure() const
+{
+    return secure;
+}
+
+void
+ControlExtension::setSecure(bool s)
+{
+    secure = s;
+}
+
+bool
+ControlExtension::isInstruction() const
+{
+    return instruction;
+}
+
+void
+ControlExtension::setInstruction(bool i)
+{
+    instruction = i;
+}
+
+uint8_t
+ControlExtension::getQos() const
+{
+    return qos;
+}
+
+void
+ControlExtension::setQos(uint8_t q)
+{
+    qos = q;
+}
+
+bool
+ControlExtension::hasStreamId() const
+{
+    return stream_id.has_value();
+}
+
+std::optional<uint32_t>
+ControlExtension::getStreamId() const
+{
+    return stream_id;
+}
+
+void
+ControlExtension::setStreamId(std::optional<uint32_t> s)
+{
+    stream_id = std::move(s);
+}
+
+bool
+ControlExtension::hasSubstreamId() const
+{
+    return substream_id.has_value();
+}
+
+std::optional<uint32_t>
+ControlExtension::getSubstreamId() const
+{
+    return substream_id;
+}
+
+void
+ControlExtension::setSubstreamId(std::optional<uint32_t> s)
+{
+    substream_id = std::move(s);
+}
+
+}  // namespace Gem5SystemC

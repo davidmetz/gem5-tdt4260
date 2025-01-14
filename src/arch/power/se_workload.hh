@@ -45,7 +45,7 @@ namespace PowerISA
 class SEWorkload : public gem5::SEWorkload
 {
   public:
-    using Params = PowerSEWorkloadParams;
+    PARAMS(PowerSEWorkload);
     SEWorkload(const Params &p, Addr page_shift) :
         gem5::SEWorkload(p, page_shift)
     {}
@@ -54,20 +54,20 @@ class SEWorkload : public gem5::SEWorkload
     setSystem(System *sys) override
     {
         gem5::SEWorkload::setSystem(sys);
-        gdb = BaseRemoteGDB::build<RemoteGDB>(system);
+        gdb = BaseRemoteGDB::build<RemoteGDB>(
+                params().remote_gdb_port, system);
     }
 
     loader::Arch getArch() const override { return loader::Power; }
 
     struct SyscallABI : public GenericSyscallABI64
     {
-        static const std::vector<int> ArgumentRegs;
+        static const std::vector<RegId> ArgumentRegs;
     };
 };
 
 } // namespace PowerISA
 
-GEM5_DEPRECATED_NAMESPACE(GuestABI, guest_abi);
 namespace guest_abi
 {
 

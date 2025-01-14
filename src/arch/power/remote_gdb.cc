@@ -155,8 +155,9 @@ namespace gem5
 
 using namespace PowerISA;
 
-RemoteGDB::RemoteGDB(System *_system, int _port)
-    : BaseRemoteGDB(_system, _port), regCache32(this), regCache64(this)
+RemoteGDB::RemoteGDB(System *_system, ListenSocketConfig _listen_config)
+    : BaseRemoteGDB(_system, _listen_config),
+    regCache32(this), regCache64(this)
 {
 }
 
@@ -188,12 +189,12 @@ RemoteGDB::PowerGdbRegCache::getRegs(ThreadContext *context)
     // PC, MSR, CR, LR, CTR, XER, FPSCR (32-bit each)
 
     for (int i = 0; i < int_reg::NumArchRegs; i++) {
-        RegId reg(IntRegClass, i);
+        RegId reg = intRegClass[i];
         r.gpr[i] = htog((uint32_t)context->getReg(reg), order);
     }
 
     for (int i = 0; i < float_reg::NumArchRegs; i++)
-        r.fpr[i] = context->getReg(RegId(FloatRegClass, i));
+        r.fpr[i] = context->getReg(floatRegClass[i]);
 
     r.pc = htog((uint32_t)context->pcState().instAddr(), order);
     r.msr = 0; // MSR is privileged, hence not exposed here
@@ -213,10 +214,10 @@ RemoteGDB::PowerGdbRegCache::setRegs(ThreadContext *context) const
     ByteOrder order = (msr.le ? ByteOrder::little : ByteOrder::big);
 
     for (int i = 0; i < int_reg::NumArchRegs; i++)
-        context->setReg(RegId(IntRegClass, i), gtoh(r.gpr[i], order));
+        context->setReg(intRegClass[i], gtoh(r.gpr[i], order));
 
     for (int i = 0; i < float_reg::NumArchRegs; i++)
-        context->setReg(RegId(FloatRegClass, i), r.fpr[i]);
+        context->setReg(floatRegClass[i], r.fpr[i]);
 
     auto pc = context->pcState().as<PowerISA::PCState>();
     pc.byteOrder(order);
@@ -244,10 +245,10 @@ RemoteGDB::Power64GdbRegCache::getRegs(ThreadContext *context)
     // each and the rest are 64-bit)
 
     for (int i = 0; i < int_reg::NumArchRegs; i++)
-        r.gpr[i] = htog(context->getReg(RegId(IntRegClass, i)), order);
+        r.gpr[i] = htog(context->getReg(intRegClass[i]), order);
 
     for (int i = 0; i < float_reg::NumArchRegs; i++)
-        r.fpr[i] = context->getReg(RegId(FloatRegClass, i));
+        r.fpr[i] = context->getReg(floatRegClass[i]);
 
     r.pc = htog(context->pcState().instAddr(), order);
     r.msr = 0; // MSR is privileged, hence not exposed here
@@ -267,10 +268,10 @@ RemoteGDB::Power64GdbRegCache::setRegs(ThreadContext *context) const
     ByteOrder order = (msr.le ? ByteOrder::little : ByteOrder::big);
 
     for (int i = 0; i < int_reg::NumArchRegs; i++)
-        context->setReg(RegId(IntRegClass, i), gtoh(r.gpr[i], order));
+        context->setReg(intRegClass[i], gtoh(r.gpr[i], order));
 
     for (int i = 0; i < float_reg::NumArchRegs; i++)
-        context->setReg(RegId(FloatRegClass, i), r.fpr[i]);
+        context->setReg(floatRegClass[i], r.fpr[i]);
 
     auto pc = context->pcState().as<PowerISA::PCState>();
     pc.byteOrder(order);

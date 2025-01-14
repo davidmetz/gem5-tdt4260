@@ -58,7 +58,7 @@ DecoderFaultInst::DecoderFaultInst(ExtMachInst _machInst)
 }
 
 Fault
-DecoderFaultInst::execute(ExecContext *xc, Trace::InstRecord *traceData) const
+DecoderFaultInst::execute(ExecContext *xc, trace::InstRecord *traceData) const
 {
     const Addr pc = xc->pcState().instAddr();
 
@@ -116,6 +116,7 @@ FailUnimplemented::FailUnimplemented(const char *_mnemonic,
     // don't call execute() (which panics) if we're on a
     // speculative path
     flags[IsNonSpeculative] = true;
+    flags[IsInvalid] = true;
 }
 
 FailUnimplemented::FailUnimplemented(const char *_mnemonic,
@@ -127,10 +128,11 @@ FailUnimplemented::FailUnimplemented(const char *_mnemonic,
     // don't call execute() (which panics) if we're on a
     // speculative path
     flags[IsNonSpeculative] = true;
+    flags[IsInvalid] = true;
 }
 
 Fault
-FailUnimplemented::execute(ExecContext *xc, Trace::InstRecord *traceData) const
+FailUnimplemented::execute(ExecContext *xc, trace::InstRecord *traceData) const
 {
     return std::make_shared<UndefinedInstruction>(machInst, false, mnemonic);
 }
@@ -166,7 +168,7 @@ WarnUnimplemented::WarnUnimplemented(const char *_mnemonic,
 }
 
 Fault
-WarnUnimplemented::execute(ExecContext *xc, Trace::InstRecord *traceData) const
+WarnUnimplemented::execute(ExecContext *xc, trace::InstRecord *traceData) const
 {
     if (!warned) {
         warn("\tinstruction '%s' unimplemented\n",
@@ -190,7 +192,7 @@ IllegalExecInst::IllegalExecInst(ExtMachInst _machInst)
 {}
 
 Fault
-IllegalExecInst::execute(ExecContext *xc, Trace::InstRecord *traceData) const
+IllegalExecInst::execute(ExecContext *xc, trace::InstRecord *traceData) const
 {
     return std::make_shared<IllegalInstSetStateFault>();
 }
@@ -200,7 +202,7 @@ DebugStep::DebugStep(ExtMachInst _machInst)
 { }
 
 Fault
-DebugStep::execute(ExecContext *xc, Trace::InstRecord *traceData) const
+DebugStep::execute(ExecContext *xc, trace::InstRecord *traceData) const
 {
     PCState pc_state = xc->pcState().as<PCState>();
     pc_state.debugStep(false);

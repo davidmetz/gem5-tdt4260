@@ -33,20 +33,23 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import *
 from m5.params import *
 from m5.proxy import Parent
+from m5.SimObject import *
+
 
 # Enum for a type of  power model
-class PMType(Enum) : vals = ['All', 'Static', 'Dynamic']
+class PMType(Enum):
+    vals = ["All", "Static", "Dynamic"]
+
 
 # Represents a power model for a simobj
 # The model itself is also a SimObject so we can make use some
 # nice features available such as Parent.any
 class PowerModel(SimObject):
-    type = 'PowerModel'
+    type = "PowerModel"
     cxx_header = "sim/power/power_model.hh"
-    cxx_class = 'gem5::PowerModel'
+    cxx_class = "gem5::PowerModel"
 
     cxx_exports = [
         PyBindMethod("getDynamicPower"),

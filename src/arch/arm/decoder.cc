@@ -42,6 +42,7 @@
 
 #include "arch/arm/isa.hh"
 #include "arch/arm/utility.hh"
+#include "base/cast.hh"
 #include "base/trace.hh"
 #include "debug/Decoder.hh"
 #include "sim/full_system.hh"
@@ -52,19 +53,21 @@ namespace gem5
 namespace ArmISA
 {
 
-GenericISA::BasicDecodeCache<Decoder, ExtMachInst> Decoder::defaultCache;
-
 Decoder::Decoder(const ArmDecoderParams &params)
     : InstDecoder(params, &data),
       dvmEnabled(params.dvm_enabled),
       data(0), fpscrLen(0), fpscrStride(0),
-      decoderFlavor(dynamic_cast<ISA *>(params.isa)->decoderFlavor())
+      decoderFlavor(safe_cast<ISA *>(params.isa)->decoderFlavor())
 {
     reset();
 
     // Initialize SVE vector length
-    sveLen = (dynamic_cast<ISA *>(params.isa)
-            ->getCurSveVecLenInBitsAtReset() >> 7) - 1;
+    sveLen = (safe_cast<ISA *>(params.isa)->
+            getCurSveVecLenInBitsAtReset() >> 7) - 1;
+
+    // Initialize SME vector length
+    smeLen = (safe_cast<ISA *>(params.isa)
+            ->getCurSmeVecLenInBitsAtReset() >> 7) - 1;
 
     if (dvmEnabled) {
         warn_once(

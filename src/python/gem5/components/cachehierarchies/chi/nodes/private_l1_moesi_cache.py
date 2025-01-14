@@ -24,16 +24,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from gem5.components.processors.abstract_core import AbstractCore
-from gem5.isas import ISA
-
-from .abstract_node import AbstractNode
-
 from m5.objects import (
+    NULL,
     ClockDomain,
     RubyCache,
     RubyNetwork,
 )
+
+from gem5.components.processors.abstract_core import AbstractCore
+from gem5.isas import ISA
+
+from .abstract_node import AbstractNode
 
 
 class PrivateL1MOESICache(AbstractNode):
@@ -54,8 +55,9 @@ class PrivateL1MOESICache(AbstractNode):
         )
 
         self.clk_domain = clk_domain
-        self.send_evictions = self.sendEvicts(core=core, target_isa=target_isa)
+        self.send_evictions = core.requires_send_evicts()
         self.use_prefetcher = False
+        self.prefetcher = NULL
 
         # Only applies to home nodes
         self.is_HN = False
@@ -69,7 +71,8 @@ class PrivateL1MOESICache(AbstractNode):
         self.alloc_on_readshared = True
         self.alloc_on_readunique = True
         self.alloc_on_readonce = True
-        self.alloc_on_writeback = False       # Should never happen in an L1
+        self.alloc_on_writeback = False  # Should never happen in an L1
+        self.alloc_on_atomic = False
         self.dealloc_on_unique = False
         self.dealloc_on_shared = False
         self.dealloc_backinv_unique = True
@@ -78,4 +81,6 @@ class PrivateL1MOESICache(AbstractNode):
         self.number_of_TBEs = 16
         self.number_of_repl_TBEs = 16
         self.number_of_snoop_TBEs = 4
+        self.number_of_DVM_TBEs = 16
+        self.number_of_DVM_snoop_TBEs = 4
         self.unify_repl_TBEs = False

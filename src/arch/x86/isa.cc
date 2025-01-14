@@ -31,15 +31,14 @@
 #include "arch/x86/decoder.hh"
 #include "arch/x86/mmu.hh"
 #include "arch/x86/regs/ccr.hh"
+#include "arch/x86/regs/float.hh"
 #include "arch/x86/regs/int.hh"
 #include "arch/x86/regs/misc.hh"
 #include "base/compiler.hh"
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
-#include "debug/CCRegs.hh"
-#include "debug/FloatRegs.hh"
-#include "debug/IntRegs.hh"
-#include "debug/MiscRegs.hh"
+#include "debug/MatRegs.hh"
+#include "debug/X86.hh"
 #include "params/X86ISA.hh"
 #include "sim/serialize.hh"
 
@@ -126,6 +125,10 @@ ISA::clear()
 
     regVal[misc_reg::Pat] = 0x0007040600070406ULL;
 
+    // Bit 11 is mttr enable (1), bit 10 is fixed range enable (1)
+    // bits 0-7 is default type (6, which means WB)
+    regVal[misc_reg::DefType] = 0xC06;
+
     regVal[misc_reg::Syscfg] = 0x20601;
 
     regVal[misc_reg::TopMem] = 0x4000000;
@@ -141,18 +144,41 @@ ISA::clear()
     regVal[misc_reg::ApicBase] = lApicBase;
 }
 
-ISA::ISA(const X86ISAParams &p) : BaseISA(p), vendorString(p.vendor_string)
+namespace
 {
-    fatal_if(vendorString.size() != 12,
-             "CPUID vendor string must be 12 characters\n");
 
-    _regClasses.emplace_back(int_reg::NumRegs, debug::IntRegs);
-    _regClasses.emplace_back(float_reg::NumRegs, debug::FloatRegs);
-    _regClasses.emplace_back(1, debug::IntRegs); // Not applicable to X86
-    _regClasses.emplace_back(2, debug::IntRegs); // Not applicable to X86
-    _regClasses.emplace_back(1, debug::IntRegs); // Not applicable to X86
-    _regClasses.emplace_back(cc_reg::NumRegs, debug::CCRegs);
-    _regClasses.emplace_back(misc_reg::NumRegs, debug::MiscRegs);
+/* Not applicable to X86 */
+RegClass vecRegClass(VecRegClass, VecRegClassName, 1, debug::IntRegs);
+RegClass vecElemClass(VecElemClass, VecElemClassName, 2, debug::IntRegs);
+RegClass vecPredRegClass(VecPredRegClass, VecPredRegClassName, 1,
+        debug::IntRegs);
+RegClass matRegClass(MatRegClass, MatRegClassName, 0, debug::MatRegs);
+
+} // anonymous namespace
+
+ISA::ISA(const X86ISAParams &p)
+    : BaseISA(p, "x86"), cpuid(new X86CPUID(p.vendor_string, p.name_string))
+{
+    cpuid->addStandardFunc(FamilyModelStepping, p.FamilyModelStepping);
+    cpuid->addStandardFunc(CacheParams, p.CacheParams);
+    cpuid->addStandardFunc(ExtendedFeatures, p.ExtendedFeatures);
+    cpuid->addStandardFunc(ExtendedState, p.ExtendedState);
+
+    cpuid->addExtendedFunc(FamilyModelSteppingBrandFeatures,
+                          p.FamilyModelSteppingBrandFeatures);
+    cpuid->addExtendedFunc(L1CacheAndTLB, p.L1CacheAndTLB);
+    cpuid->addExtendedFunc(L2L3CacheAndL2TLB, p.L2L3CacheAndL2TLB);
+    cpuid->addExtendedFunc(APMInfo, p.APMInfo);
+    cpuid->addExtendedFunc(LongModeAddressSize, p.LongModeAddressSize);
+
+    _regClasses.push_back(&flatIntRegClass);
+    _regClasses.push_back(&flatFloatRegClass);
+    _regClasses.push_back(&vecRegClass);
+    _regClasses.push_back(&vecElemClass);
+    _regClasses.push_back(&vecPredRegClass);
+    _regClasses.push_back(&matRegClass);
+    _regClasses.push_back(&ccRegClass);
+    _regClasses.push_back(&miscRegClass);
 
     clear();
 }
@@ -181,73 +207,74 @@ void
 ISA::copyRegsFrom(ThreadContext *src)
 {
     //copy int regs
-    for (int i = 0; i < int_reg::NumRegs; ++i) {
-        RegId reg(IntRegClass, i);
-        tc->setRegFlat(reg, src->getRegFlat(reg));
-    }
+    for (auto &id: flatIntRegClass)
+        tc->setReg(id, src->getReg(id));
     //copy float regs
-    for (int i = 0; i < float_reg::NumRegs; ++i) {
-        RegId reg(FloatRegClass, i);
-        tc->setRegFlat(reg, src->getRegFlat(reg));
-    }
+    for (auto &id: flatFloatRegClass)
+        tc->setReg(id, src->getReg(id));
     //copy condition-code regs
-    for (int i = 0; i < cc_reg::NumRegs; ++i) {
-        RegId reg(CCRegClass, i);
-        tc->setRegFlat(reg, src->getRegFlat(reg));
-    }
+    for (auto &id: ccRegClass)
+        tc->setReg(id, src->getReg(id));
     copyMiscRegs(src, tc);
     tc->pcState(src->pcState());
 }
 
 RegVal
-ISA::readMiscRegNoEffect(int miscReg) const
+ISA::readMiscRegNoEffect(RegIndex idx) const
 {
     // Make sure we're not dealing with an illegal control register.
     // Instructions should filter out these indexes, and nothing else should
     // attempt to read them directly.
-    assert(misc_reg::isValid(miscReg));
+    assert(misc_reg::isValid(idx));
 
-    return regVal[miscReg];
+    return regVal[idx];
 }
 
 RegVal
-ISA::readMiscReg(int miscReg)
+ISA::readMiscReg(RegIndex idx)
 {
-    if (miscReg == misc_reg::Tsc) {
+
+    DPRINTF(X86, "Reading misc reg %#x, value: %#llx\n", idx, regVal[idx]);
+
+    if (idx == misc_reg::Tsc) {
         return regVal[misc_reg::Tsc] + tc->getCpuPtr()->curCycle();
     }
 
-    if (miscReg == misc_reg::Fsw) {
+    if (idx == misc_reg::Fsw) {
         RegVal fsw = regVal[misc_reg::Fsw];
         RegVal top = regVal[misc_reg::X87Top];
         return insertBits(fsw, 13, 11, top);
     }
 
-    if (miscReg == misc_reg::ApicBase) {
+    if (idx == misc_reg::ApicBase) {
         LocalApicBase base = regVal[misc_reg::ApicBase];
         base.bsp = (tc->contextId() == 0);
         return base;
     }
 
-    return readMiscRegNoEffect(miscReg);
+    if (idx == misc_reg::Xcr0) {
+        return regVal[idx] | 1;
+    }
+
+    return readMiscRegNoEffect(idx);
 }
 
 void
-ISA::setMiscRegNoEffect(int miscReg, RegVal val)
+ISA::setMiscRegNoEffect(RegIndex idx, RegVal val)
 {
     // Make sure we're not dealing with an illegal control register.
     // Instructions should filter out these indexes, and nothing else should
     // attempt to write to them directly.
-    assert(misc_reg::isValid(miscReg));
+    assert(misc_reg::isValid(idx));
 
     HandyM5Reg m5Reg = regVal[misc_reg::M5Reg];
     int reg_width = 64;
-    switch (miscReg) {
+    switch (idx) {
       case misc_reg::X87Top:
         reg_width = 3;
         break;
       case misc_reg::Ftw:
-        reg_width = 8;
+        reg_width = 16;
         break;
       case misc_reg::Fsw:
       case misc_reg::Fcw:
@@ -271,18 +298,17 @@ ISA::setMiscRegNoEffect(int miscReg, RegVal val)
         break;
     }
 
-    regVal[miscReg] = val & mask(reg_width);
+    regVal[idx] = val & mask(reg_width);
 }
 
 void
-ISA::setMiscReg(int miscReg, RegVal val)
+ISA::setMiscReg(RegIndex idx, RegVal val)
 {
     RegVal newVal = val;
-    switch(miscReg)
-    {
+    switch (idx) {
       case misc_reg::Cr0:
         {
-            CR0 toggled = regVal[miscReg] ^ val;
+            CR0 toggled = regVal[idx] ^ val;
             CR0 newCR0 = val;
             Efer efer = regVal[misc_reg::Efer];
             if (toggled.pg && efer.lme) {
@@ -316,13 +342,15 @@ ISA::setMiscReg(int miscReg, RegVal val)
         break;
       case misc_reg::Cr4:
         {
-            CR4 toggled = regVal[miscReg] ^ val;
+            CR4 toggled = regVal[idx] ^ val;
             if (toggled.pae || toggled.pse || toggled.pge) {
                 tc->getMMUPtr()->flushAll();
             }
         }
         break;
       case misc_reg::Cr8:
+        break;
+      case misc_reg::Xcr0:
         break;
       case misc_reg::Rflags:
         {
@@ -332,7 +360,7 @@ ISA::setMiscReg(int miscReg, RegVal val)
         }
       case misc_reg::CsAttr:
         {
-            SegAttr toggled = regVal[miscReg] ^ val;
+            SegAttr toggled = regVal[idx] ^ val;
             SegAttr newCSAttr = val;
             if (toggled.longMode) {
                 if (newCSAttr.longMode) {
@@ -370,7 +398,7 @@ ISA::setMiscReg(int miscReg, RegVal val)
       case misc_reg::TsgBase:
       case misc_reg::TrBase:
       case misc_reg::IdtrBase:
-        regVal[misc_reg::segEffBase(miscReg - misc_reg::SegBaseBase)] = val;
+        regVal[misc_reg::segEffBase(idx - misc_reg::SegBaseBase)] = val;
         break;
       // These segments ignore their bases in 64 bit mode.
       // their effective bases must stay equal to their actual bases.
@@ -382,7 +410,7 @@ ISA::setMiscReg(int miscReg, RegVal val)
             Efer efer = regVal[misc_reg::Efer];
             SegAttr csAttr = regVal[misc_reg::CsAttr];
             if (!efer.lma || !csAttr.longMode) // Check for non 64 bit mode.
-                regVal[misc_reg::segEffBase(miscReg -
+                regVal[misc_reg::segEffBase(idx -
                         misc_reg::SegBaseBase)] = val;
         }
         break;
@@ -396,7 +424,7 @@ ISA::setMiscReg(int miscReg, RegVal val)
         /* These should eventually set up breakpoints. */
         break;
       case misc_reg::Dr4:
-        miscReg = misc_reg::Dr6;
+        idx = misc_reg::Dr6;
         [[fallthrough]];
       case misc_reg::Dr6:
         {
@@ -413,7 +441,7 @@ ISA::setMiscReg(int miscReg, RegVal val)
         }
         break;
       case misc_reg::Dr5:
-        miscReg = misc_reg::Dr7;
+        idx = misc_reg::Dr7;
         [[fallthrough]];
       case misc_reg::Dr7:
         {
@@ -471,12 +499,14 @@ ISA::setMiscReg(int miscReg, RegVal val)
       default:
         break;
     }
-    setMiscRegNoEffect(miscReg, newVal);
+    setMiscRegNoEffect(idx, newVal);
 }
 
 void
 ISA::serialize(CheckpointOut &cp) const
 {
+    BaseISA::serialize(cp);
+
     SERIALIZE_ARRAY(regVal, misc_reg::NumRegs);
 }
 

@@ -24,73 +24,47 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .memory import ChanneledMemory
-from .abstract_memory_system import AbstractMemorySystem
-
 from typing import Optional
-from .dram_interfaces.ddr3 import DDR3_1600_8x8, DDR3_2133_8x8
+
+from .abstract_memory_system import AbstractMemorySystem
+from .dram_interfaces.ddr3 import (
+    DDR3_1600_8x8,
+    DDR3_2133_8x8,
+)
 from .dram_interfaces.ddr4 import DDR4_2400_8x8
-from .dram_interfaces.lpddr3 import LPDDR3_1600_1x32
 from .dram_interfaces.hbm import HBM_1000_4H_1x64
+from .dram_interfaces.lpddr3 import LPDDR3_1600_1x32
+from .memory import ChanneledMemory
 
 
 def DualChannelDDR3_1600(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
     """
-    A dual channel memory system using DDR3_1600_8x8 based DIMM
+    A dual channel memory system using DDR3_1600_8x8 based DIMM.
     """
-    return ChanneledMemory(
-        DDR3_1600_8x8,
-        2,
-        64,
-        size=size,
-    )
+    return ChanneledMemory(DDR3_1600_8x8, 2, 64, size=size)
+
 
 def DualChannelDDR3_2133(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
     """
-    A dual channel memory system using DDR3_2133_8x8 based DIMM
+    A dual channel memory system using DDR3_2133_8x8 based DIMM.
     """
-    return ChanneledMemory(
-        DDR3_2133_8x8,
-        2,
-        64,
-        size=size,
-    )
+    return ChanneledMemory(DDR3_2133_8x8, 2, 64, size=size)
+
 
 def DualChannelDDR4_2400(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
     """
-    A dual channel memory system using DDR4_2400_8x8 based DIMM
+    A dual channel memory system using DDR4_2400_8x8 based DIMM.
     """
-    return ChanneledMemory(
-        DDR4_2400_8x8,
-        2,
-        64,
-        size=size,
-    )
+    return ChanneledMemory(DDR4_2400_8x8, 2, 64, size=size)
+
 
 def DualChannelLPDDR3_1600(
     size: Optional[str] = None,
 ) -> AbstractMemorySystem:
-    return ChanneledMemory(
-        LPDDR3_1600_1x32,
-        2,
-        64,
-        size=size,
-    )
-
-def HBM2Stack(
-    size: Optional[str] = None,
-) -> AbstractMemorySystem:
-    if not size:
-        size = "4GiB"
-    return ChanneledMemory(
-        HBM_1000_4H_1x64,
-        16,
-        64,
-        size=size,
-    )
+    return ChanneledMemory(LPDDR3_1600_1x32, 2, 64, size=size)

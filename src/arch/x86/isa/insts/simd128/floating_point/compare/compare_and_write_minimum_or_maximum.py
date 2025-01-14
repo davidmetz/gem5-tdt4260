@@ -33,7 +33,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-microcode = '''
+microcode = """
 def macroop MINPS_XMM_XMM {
     mminf xmml, xmml, xmmlm, ext=0, size=4
     mminf xmmh, xmmh, xmmhm, ext=0, size=4
@@ -173,4 +173,24 @@ def macroop MAXSD_XMM_P {
     ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
     mmaxf xmml, xmml, ufp1, ext=Scalar, size=8
 };
-'''
+
+def macroop PHMINPOSUW_XMM_XMM {
+    phminposuw xmml, xmmlm, xmmhm, size=2
+    xorfp xmmh, xmmh, xmmh
+};
+
+def macroop PHMINPOSUW_XMM_M {
+    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
+    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
+    phminposuw xmml, ufp1, ufp2, size=2
+    xorfp xmmh, xmmh, xmmh
+};
+
+def macroop PHMINPOSUW_XMM_P {
+    rdip t7
+    ldfp ufp1, seg, riprel, "DISPLACEMENT", dataSize=8
+    ldfp ufp2, seg, riprel, "DISPLACEMENT + 8", dataSize=8
+    phminposuw xmml, ufp1, ufp2, size=2
+    xorfp xmmh, xmmh, xmmh
+};
+"""

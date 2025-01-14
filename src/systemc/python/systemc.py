@@ -24,18 +24,23 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import _m5.systemc
+from _m5.systemc import (
+    sc_main,
+    sc_main_result_code,
+    sc_main_result_str,
+    sc_time,
+)
 
-from _m5.systemc import sc_main
-from _m5.systemc import sc_time
-from _m5.systemc import sc_main_result_code, sc_main_result_str
 
-class ScMainResult(object):
+class ScMainResult:
     def __init__(self, code, message):
         self.code = code
         self.message = message
 
+
 def sc_main_result():
-    '''Retrieve and return the results of running sc_main'''
+    """Retrieve and return the results of running sc_main"""
     return ScMainResult(sc_main_result_code(), sc_main_result_str())
 
-__all__ = [ 'sc_main', 'sc_time', 'sc_main_result' ]
+
+__all__ = ["sc_main", "sc_time", "sc_main_result"]

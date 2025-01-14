@@ -371,13 +371,22 @@ class PredMacroOp : public PredOp
     }
 
     Fault
-    execute(ExecContext *, Trace::InstRecord *) const override
+    execute(ExecContext *, trace::InstRecord *) const override
     {
         panic("Execute method called when it shouldn't!");
     }
 
     std::string generateDisassembly(
             Addr pc, const loader::SymbolTable *symtab) const override;
+
+
+    void size(size_t newSize) override
+    {
+        for (int i = 0; i < numMicroops; i++) {
+            microOps[i]->size(newSize);
+        }
+        _size = newSize;
+    }
 };
 
 /**

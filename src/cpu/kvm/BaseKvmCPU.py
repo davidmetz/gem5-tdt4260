@@ -33,17 +33,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import *
-from m5.params import *
-from m5.proxy import *
-
 from m5.objects.BaseCPU import BaseCPU
 from m5.objects.KvmVM import KvmVM
+from m5.params import *
+from m5.proxy import *
+from m5.SimObject import *
+
 
 class BaseKvmCPU(BaseCPU):
-    type = 'BaseKvmCPU'
+    type = "BaseKvmCPU"
     cxx_header = "cpu/kvm/base.hh"
-    cxx_class = 'gem5::BaseKvmCPU'
+    cxx_class = "gem5::BaseKvmCPU"
     abstract = True
 
     @cxxMethod
@@ -53,7 +53,7 @@ class BaseKvmCPU(BaseCPU):
 
     @classmethod
     def memory_mode(cls):
-        return 'atomic_noncaching'
+        return "atomic_noncaching"
 
     @classmethod
     def require_caches(cls):
@@ -63,10 +63,18 @@ class BaseKvmCPU(BaseCPU):
     def support_take_over(cls):
         return True
 
+    usePerf = Param.Bool(
+        True,
+        "Use perf for gathering statistics from the guest and providing "
+        "statistic-related functionalities",
+    )
     useCoalescedMMIO = Param.Bool(False, "Use coalesced MMIO (EXPERIMENTAL)")
-    usePerfOverflow = Param.Bool(False, "Use perf event overflow counters (EXPERIMENTAL)")
-    alwaysSyncTC = Param.Bool(False,
-                              "Always sync thread contexts on entry/exit")
+    usePerfOverflow = Param.Bool(
+        False, "Use perf event overflow counters (EXPERIMENTAL)"
+    )
+    alwaysSyncTC = Param.Bool(
+        False, "Always sync thread contexts on entry/exit"
+    )
 
     hostFreq = Param.Clock("2GHz", "Host clock frequency")
     hostFactor = Param.Float(1.0, "Cycle scale factor")

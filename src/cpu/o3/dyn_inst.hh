@@ -50,7 +50,6 @@
 
 #include "base/refcnt.hh"
 #include "base/trace.hh"
-#include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/exec_context.hh"
 #include "cpu/exetrace.hh"
@@ -96,6 +95,7 @@ class DynInst : public ExecContext, public RefCounted
     };
 
     static void *operator new(size_t count, Arrays &arrays);
+    static void  operator delete(void* ptr);
 
     /** BaseDynInst constructor given a binary instruction. */
     DynInst(const Arrays &arrays, const StaticInstPtr &staticInst,
@@ -138,7 +138,7 @@ class DynInst : public ExecContext, public RefCounted
     Fault fault = NoFault;
 
     /** InstRecord that tracks this instructions. */
-    Trace::InstRecord *traceData = nullptr;
+    trace::InstRecord *traceData = nullptr;
 
   protected:
     enum Status
@@ -187,6 +187,8 @@ class DynInst : public ExecContext, public RefCounted
         ReqMade,
         MemOpDone,
         HtmFromTransaction,
+        NoCapableFU,           /// Processor does not have capability to
+                               /// execute the instruction
         MaxFlags
     };
 
@@ -452,7 +454,7 @@ class DynInst : public ExecContext, public RefCounted
     }
 
   public:
-#ifdef DEBUG
+#ifdef GEM5_DEBUG
     void dumpSNList();
 #endif
 
@@ -713,10 +715,10 @@ class DynInst : public ExecContext, public RefCounted
     /** @{ */
     template<typename T>
     void
-    setResult(T &&t)
+    setResult(const RegClass &reg_class, T &&t)
     {
         if (instFlags[RecordResult]) {
-            instResult.emplace(std::forward<T>(t));
+            instResult.emplace(reg_class, std::forward<T>(t));
         }
     }
     /** @} */
@@ -840,6 +842,16 @@ class DynInst : public ExecContext, public RefCounted
 
     /** Returns whether or not this instruction is squashed in the ROB. */
     bool isSquashedInROB() const { return status[SquashedInROB]; }
+
+    /** Mark this instruction as having attempted to execute
+     * but CPU did not have a capable functional unit.
+     */
+    void setNoCapableFU() { instFlags.set(NoCapableFU); }
+
+    /** Returns whether or not this instruction attempted
+     * to execute and found not capable FU.
+     */
+    bool noCapableFU() const { return instFlags[NoCapableFU]; }
 
     /** Returns whether pinned registers are renamed */
     bool isPinnedRegsRenamed() const { return status[PinnedRegsRenamed]; }
@@ -1078,38 +1090,19 @@ class DynInst : public ExecContext, public RefCounted
         for (int idx = 0; idx < numDestRegs(); idx++) {
             PhysRegIdPtr prev_phys_reg = prevDestIdx(idx);
             const RegId& original_dest_reg = staticInst->destRegIdx(idx);
-            switch (original_dest_reg.classValue()) {
-              case IntRegClass:
-              case FloatRegClass:
-              case CCRegClass:
+            const auto bytes = original_dest_reg.regClass().regBytes();
+
+            // Registers which aren't renamed don't need to be forwarded.
+            if (!original_dest_reg.isRenameable())
+                continue;
+
+            if (bytes == sizeof(RegVal)) {
                 setRegOperand(staticInst.get(), idx,
-                        cpu->getReg(prev_phys_reg));
-                break;
-              case VecRegClass:
-                {
-                    TheISA::VecRegContainer val;
-                    cpu->getReg(prev_phys_reg, &val);
-                    setRegOperand(staticInst.get(), idx, &val);
-                }
-                break;
-              case VecElemClass:
-                setRegOperand(staticInst.get(), idx,
-                        cpu->getReg(prev_phys_reg));
-                break;
-              case VecPredRegClass:
-                {
-                    TheISA::VecPredRegContainer val;
-                    cpu->getReg(prev_phys_reg, &val);
-                    setRegOperand(staticInst.get(), idx, &val);
-                }
-                break;
-              case InvalidRegClass:
-              case MiscRegClass:
-                // no need to forward misc reg values
-                break;
-              default:
-                panic("Unknown register class: %d",
-                        (int)original_dest_reg.classValue());
+                        cpu->getReg(prev_phys_reg, threadNumber));
+            } else {
+                uint8_t val[original_dest_reg.regClass().regBytes()];
+                cpu->getReg(prev_phys_reg, val, threadNumber);
+                setRegOperand(staticInst.get(), idx, val);
             }
         }
     }
@@ -1135,7 +1128,7 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return 0;
-        return cpu->getReg(reg);
+        return cpu->getReg(reg, threadNumber);
     }
 
     void
@@ -1144,13 +1137,13 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedSrcIdx(idx);
         if (reg->is(InvalidRegClass))
             return;
-        cpu->getReg(reg, val);
+        cpu->getReg(reg, val, threadNumber);
     }
 
     void *
     getWritableRegOperand(const StaticInst *si, int idx) override
     {
-        return cpu->getWritableReg(renamedDestIdx(idx));
+        return cpu->getWritableReg(renamedDestIdx(idx), threadNumber);
     }
 
     /** @todo: Make results into arrays so they can handle multiple dest
@@ -1162,8 +1155,8 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedDestIdx(idx);
         if (reg->is(InvalidRegClass))
             return;
-        cpu->setReg(reg, val);
-        setResult(val);
+        cpu->setReg(reg, val, threadNumber);
+        setResult(reg->regClass(), val);
     }
 
     void
@@ -1172,8 +1165,8 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedDestIdx(idx);
         if (reg->is(InvalidRegClass))
             return;
-        cpu->setReg(reg, val);
-        //TODO setResult
+        cpu->setReg(reg, val, threadNumber);
+        setResult(reg->regClass(), val);
     }
 };
 

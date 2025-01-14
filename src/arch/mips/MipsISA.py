@@ -33,14 +33,14 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.BaseISA import BaseISA
 from m5.params import *
 from m5.proxy import *
 
-from m5.objects.BaseISA import BaseISA
 
 class MipsISA(BaseISA):
-    type = 'MipsISA'
-    cxx_class = 'gem5::MipsISA::ISA'
+    type = "MipsISA"
+    cxx_class = "gem5::MipsISA::ISA"
     cxx_header = "arch/mips/isa.hh"
 
     system = Param.System(Parent.any, "System this ISA object belongs to")

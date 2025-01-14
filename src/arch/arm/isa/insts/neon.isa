@@ -1,6 +1,6 @@
 // -*- mode:c++ -*-
 
-// Copyright (c) 2010-2011, 2015, 2019 ARM Limited
+// Copyright (c) 2010-2011, 2015, 2019, 2024 ARM Limited
 // All rights reserved
 //
 // The license below extends only to copyright in the software and shall
@@ -2551,6 +2551,8 @@ let {{
                 destElem = (srcElem1 >> shiftAmt);
             }
             destElem += rBit;
+        } else if (shiftAmt == 0) {
+            destElem = srcElem1;
         } else {
             if (shiftAmt >= sizeof(Element) * 8) {
                 if (srcElem1 != 0) {
@@ -3052,7 +3054,7 @@ let {{
         FPSCR fpscr = (FPSCR) FpscrExc;
         float mid = binaryOp(fpscr, srcReg1, srcReg2, fpSubS,
                              true, true, VfpRoundNearest);
-        destReg = fabs(mid);
+        destReg = fabsf(mid);
         FpscrExc = fpscr;
     '''
     threeEqualRegInstFp("vabd", "VabdDFp", "SimdFloatAddOp", ("float",), 2, vabdfpCode)
@@ -3578,6 +3580,224 @@ let {{
         FpscrExc = fpscr;
     '''
     twoRegLongMiscInst("vcvt", "NVcvth2s", "SimdCvtOp", ("uint16_t",), vcvth2sCode)
+
+    vcvthp2hCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = vcvtFpHFpS(fpscr, fpscr.dn, fpscr.ahp, srcElem1);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        destElem = vfpFpToFixed<float>(mid, %s, 16, 0, true, %s);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vcvtahp2uhCode = vcvthp2hCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vcvta.u16.f16", "NVcvt2uhAD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtahp2uhCode)
+    twoRegMiscInst("vcvta.u16.f16", "NVcvt2uhAQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtahp2uhCode)
+
+    vcvtnhp2uhCode = vcvthp2hCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.u16.f16", "NVcvt2uhND", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtnhp2uhCode)
+    twoRegMiscInst("vcvtn.u16.f16", "NVcvt2uhNQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtnhp2uhCode)
+
+    vcvtphp2uhCode = vcvthp2hCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.u16.f16", "NVcvt2uhPD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtphp2uhCode)
+    twoRegMiscInst("vcvtp.u16.f16", "NVcvt2uhPQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtphp2uhCode)
+
+    vcvtmhp2uhCode = vcvthp2hCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.u16.f16", "NVcvt2uhMD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtmhp2uhCode)
+    twoRegMiscInst("vcvtm.u16.f16", "NVcvt2uhMQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtmhp2uhCode)
+
+    vcvtahp2shCode = vcvthp2hCode % ("true", "VfpRoundAway")
+    twoRegMiscInst("vcvta.s16.f16", "NVcvt2shAD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtahp2shCode)
+    twoRegMiscInst("vcvta.s16.f16", "NVcvt2shAQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtahp2shCode)
+
+    vcvtnhp2shCode = vcvthp2hCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.s16.f16", "NVcvt2shND", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtnhp2shCode)
+    twoRegMiscInst("vcvtn.s16.f16", "NVcvt2shNQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtnhp2shCode)
+
+    vcvtphp2shCode = vcvthp2hCode % ("true", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.s16.f16", "NVcvt2shPD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtphp2shCode)
+    twoRegMiscInst("vcvtp.s16.f16", "NVcvt2shPQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtphp2shCode)
+
+    vcvtmhp2shCode = vcvthp2hCode % ("true", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.s16.f16", "NVcvt2shMD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtmhp2shCode)
+    twoRegMiscInst("vcvtm.s16.f16", "NVcvt2shMQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtmhp2shCode)
+
+    vcvtsp2sCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = bitsToFp(srcElem1, (float)0.0);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        destElem = vfpFpToFixed<float>(mid, %s, 32, 0, true, %s);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vcvtasp2usCode = vcvtsp2sCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vcvta.u32.f32", "NVcvt2usAD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtasp2usCode)
+    twoRegMiscInst("vcvta.u32.f32", "NVcvt2usAQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtasp2usCode)
+
+    vcvtnsp2usCode = vcvtsp2sCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.u32.f32", "NVcvt2usND", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtnsp2usCode)
+    twoRegMiscInst("vcvtn.u32.f32", "NVcvt2usNQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtnsp2usCode)
+
+    vcvtpsp2usCode = vcvtsp2sCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.u32.f32", "NVcvt2usPD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtpsp2usCode)
+    twoRegMiscInst("vcvtp.u32.f32", "NVcvt2usPQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtpsp2usCode)
+
+    vcvtmsp2usCode = vcvtsp2sCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.u32.f32", "NVcvt2usMD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtmsp2usCode)
+    twoRegMiscInst("vcvtm.u32.f32", "NVcvt2usMQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtmsp2usCode)
+
+    vcvtasp2ssCode = vcvtsp2sCode % ("true", "VfpRoundAway")
+    twoRegMiscInst("vcvta.s32.f32", "NVcvt2ssAD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtasp2ssCode)
+    twoRegMiscInst("vcvta.s32.f32", "NVcvt2ssAQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtasp2ssCode)
+
+    vcvtnsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.s32.f32", "NVcvt2ssND", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtnsp2ssCode)
+    twoRegMiscInst("vcvtn.s32.f32", "NVcvt2ssNQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtnsp2ssCode)
+
+    vcvtpsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.s32.f32", "NVcvt2ssPD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtpsp2ssCode)
+    twoRegMiscInst("vcvtp.s32.f32", "NVcvt2ssPQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtpsp2ssCode)
+
+    vcvtmsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.s32.f32", "NVcvt2ssMD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtmsp2ssCode)
+    twoRegMiscInst("vcvtm.s32.f32", "NVcvt2ssMQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtmsp2ssCode)
+
+    vrinthpCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = vcvtFpHFpS(fpscr, fpscr.dn, fpscr.ahp, srcElem1);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        float mid2 = vfpFpRint<float>(mid, %s, fpscr.dn, true, %s);
+        destElem = vcvtFpSFpH(fpscr, fpscr.fz, fpscr.dn, %s, fpscr.ahp, mid2);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+    vrintnhpCode = vrinthpCode % ("false",
+                                  "VfpRoundNearest", "VfpRoundNearest")
+    twoRegMiscInst("vrintn.f16", "NVrintnhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintnhpCode)
+    twoRegMiscInst("vrintn.f16", "NVrintnhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintnhpCode)
+    vrintxhpCode = vrinthpCode % ("true",
+                                  "VfpRoundNearest", "VfpRoundNearest")
+    twoRegMiscInst("vrintx.f16", "NVrintxhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintxhpCode)
+    twoRegMiscInst("vrintx.f16", "NVrintxhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintxhpCode)
+    vrintahpCode = vrinthpCode % ("false", "VfpRoundAway", "VfpRoundAway")
+    twoRegMiscInst("vrinta.f16", "NVrintahpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintahpCode)
+    twoRegMiscInst("vrinta.f16", "NVrintahpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintahpCode)
+    vrintzhpCode = vrinthpCode % ("false", "VfpRoundZero", "VfpRoundZero")
+    twoRegMiscInst("vrintz.f16", "NVrintzhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintzhpCode)
+    twoRegMiscInst("vrintz.f16", "NVrintzhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintzhpCode)
+    vrintmhpCode = vrinthpCode % ("false", "VfpRoundDown", "VfpRoundDown")
+    twoRegMiscInst("vrintm.f16", "NVrintmhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintmhpCode)
+    twoRegMiscInst("vrintm.f16", "NVrintmhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintmhpCode)
+    vrintphpCode = vrinthpCode % ("false", "VfpRoundUpward", "VfpRoundUpward")
+    twoRegMiscInst("vrintp.f16", "NVrintphpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintphpCode)
+    twoRegMiscInst("vrintp.f16", "NVrintphpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintphpCode)
+
+    vrintspCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = bitsToFp(srcElem1, (float)0.0);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        float mid2 = vfpFpRint<float>(mid, %s, fpscr.dn, true, %s);
+        destElem = fpToBits(mid2);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vrintnspCode = vrintspCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vrintn.f32", "NVrintnspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintnspCode)
+    twoRegMiscInst("vrintn.f32", "NVrintnspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintnspCode)
+
+    vrintxspCode = vrintspCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vrintx.f32", "NVrintxspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintxspCode)
+    twoRegMiscInst("vrintx.f32", "NVrintxspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintxspCode)
+
+    vrintaspCode = vrintspCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vrinta.f32", "NVrintaspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintaspCode)
+    twoRegMiscInst("vrinta.f32", "NVrintaspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintaspCode)
+
+    vrintzspCode = vrintspCode % ("false", "VfpRoundZero")
+    twoRegMiscInst("vrintz.f32", "NVrintzspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintzspCode)
+    twoRegMiscInst("vrintz.f32", "NVrintzspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintzspCode)
+
+    vrintmspCode = vrintspCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vrintm.f32", "NVrintmspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintmspCode)
+    twoRegMiscInst("vrintm.f32", "NVrintmspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintmspCode)
+
+    vrintpspCode = vrintspCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vrintp.f32", "NVrintpspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintpspCode)
+    twoRegMiscInst("vrintp.f32", "NVrintpspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintpspCode)
 
     vrsqrteCode = '''
         destElem = unsignedRSqrtEstimate(srcElem1);

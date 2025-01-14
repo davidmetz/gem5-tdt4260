@@ -24,8 +24,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.objects.InstDecoder import InstDecoder
+from m5.params import *
+
 
 class RiscvDecoder(InstDecoder):
-    type = 'RiscvDecoder'
-    cxx_class = 'gem5::RiscvISA::Decoder'
+    type = "RiscvDecoder"
+    cxx_class = "gem5::RiscvISA::Decoder"
     cxx_header = "arch/riscv/decoder.hh"

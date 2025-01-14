@@ -24,14 +24,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .abstract_node import AbstractNode
-
 from m5.objects import (
-    ClockDomain,
     NULL,
+    ClockDomain,
     RubyCache,
     RubyNetwork,
 )
+
+from .abstract_node import AbstractNode
+
 
 class SimpleDirectory(AbstractNode):
     """A directory or home node (HNF)
@@ -39,6 +40,7 @@ class SimpleDirectory(AbstractNode):
     This simple directory has no cache. It forwards all requests as directly
     as possible.
     """
+
     def __init__(
         self,
         network: RubyNetwork,
@@ -49,10 +51,7 @@ class SimpleDirectory(AbstractNode):
 
         # Dummy cache
         self.cache = RubyCache(
-            dataAccessLatency = 0,
-            tagAccessLatency = 1,
-            size = "128",
-            assoc = 1
+            dataAccessLatency=0, tagAccessLatency=1, size="128", assoc=1
         )
 
         self.clk_domain = clk_domain
@@ -62,6 +61,7 @@ class SimpleDirectory(AbstractNode):
         self.sequencer = NULL
 
         self.use_prefetcher = False
+        self.prefetcher = NULL
 
         # Set up home node that allows three hop protocols
         self.is_HN = True
@@ -78,6 +78,7 @@ class SimpleDirectory(AbstractNode):
         self.alloc_on_readunique = False
         self.alloc_on_readonce = False
         self.alloc_on_writeback = False
+        self.alloc_on_atomic = False
         self.dealloc_on_unique = False
         self.dealloc_on_shared = False
         self.dealloc_backinv_unique = False
@@ -87,4 +88,6 @@ class SimpleDirectory(AbstractNode):
         self.number_of_TBEs = 32
         self.number_of_repl_TBEs = 32
         self.number_of_snoop_TBEs = 1
+        self.number_of_DVM_TBEs = 1  # should not receive any dvm
+        self.number_of_DVM_snoop_TBEs = 1  # should not receive any dvm
         self.unify_repl_TBEs = False

@@ -33,8 +33,20 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5 import fatal
 import m5.objects
+from m5 import fatal
+
+from gem5.isas import ISA
+
+isa_string_map = {
+    ISA.X86: "X86",
+    ISA.ARM: "Arm",
+    ISA.RISCV: "Riscv",
+    ISA.SPARC: "Sparc",
+    ISA.POWER: "Power",
+    ISA.MIPS: "Mips",
+}
+
 
 def config_etrace(cpu_cls, cpu_list, options):
     if issubclass(cpu_cls, m5.objects.DerivO3CPU):
@@ -45,17 +57,21 @@ def config_etrace(cpu_cls, cpu_list, options):
             # file names. Set the dependency window size equal to the cpu it
             # is attached to.
             cpu.traceListener = m5.objects.ElasticTrace(
-                                instFetchTraceFile = options.inst_trace_file,
-                                dataDepTraceFile = options.data_trace_file,
-                                depWindowSize = 3 * cpu.numROBEntries)
+                instFetchTraceFile=options.inst_trace_file,
+                dataDepTraceFile=options.data_trace_file,
+                depWindowSize=3 * cpu.numROBEntries,
+            )
             # Make the number of entries in the ROB, LQ and SQ very
             # large so that there are no stalls due to resource
             # limitation as such stalls will get captured in the trace
             # as compute delay. For replay, ROB, LQ and SQ sizes are
             # modelled in the Trace CPU.
-            cpu.numROBEntries = 512;
-            cpu.LQEntries = 128;
-            cpu.SQEntries = 128;
+            cpu.numROBEntries = 512
+            cpu.LQEntries = 128
+            cpu.SQEntries = 128
     else:
-        fatal("%s does not support data dependency tracing. Use a CPU model of"
-              " type or inherited from DerivO3CPU.", cpu_cls)
+        fatal(
+            "%s does not support data dependency tracing. Use a CPU model of"
+            " type or inherited from DerivO3CPU.",
+            cpu_cls,
+        )

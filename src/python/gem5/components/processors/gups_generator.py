@@ -26,16 +26,15 @@
 
 
 from typing import Optional
-from m5.objects import Addr
-from ...utils.override import overrides
 
-from ..boards.mem_mode import MemMode
-from .abstract_processor import AbstractProcessor
-from ..boards.abstract_board import AbstractBoard
+from m5.objects import Addr
+
+from ...utils.override import overrides
+from .abstract_generator import AbstractGenerator
 from .gups_generator_core import GUPSGeneratorCore
 
 
-class GUPSGenerator(AbstractProcessor):
+class GUPSGenerator(AbstractGenerator):
     def __init__(
         self,
         start_addr: Addr,
@@ -44,6 +43,7 @@ class GUPSGenerator(AbstractProcessor):
         clk_freq: Optional[str] = None,
     ):
         """The GUPSGenerator class
+
         This class defines the interface for a single core GUPSGenerator, this
         generator could be used in place of a processor. For multicore versions
         of this generator look at GUPSGeneraorEP (EP stands for embarrassingly
@@ -52,10 +52,11 @@ class GUPSGenerator(AbstractProcessor):
 
         :param start_addr: The start address for allocating the update table.
         :param mem_size: The size of memory to allocate for the update table.
-        Should be a power of 2.
+                         Should be a power of 2.
         :param update_limit: The number of updates to do before terminating
-        simulation. Pass zero to run the benchmark to completion (The amount of
-        time it takes to simulate depends on )
+                             simulation. Pass zero to run the benchmark to
+                             completion (The amount of time it takes to simulate
+                             depends on it).
         """
         super().__init__(
             cores=[
@@ -68,12 +69,10 @@ class GUPSGenerator(AbstractProcessor):
             ]
         )
 
-    @overrides(AbstractProcessor)
-    def incorporate_processor(self, board: AbstractBoard) -> None:
-        board.set_mem_mode(MemMode.TIMING)
-
+    @overrides(AbstractGenerator)
     def start_traffic(self):
-        # This function should be implemented so that GUPSGenerator could be
-        # used in the same scripts that use LinearGenerator, RandomGenerator,
-        # and ComplexGenrator
+        """
+        Since GUPSGeneratorCore does not need a call to ``start_traffic`` to
+        start generation. This function is just pass.
+        """
         pass

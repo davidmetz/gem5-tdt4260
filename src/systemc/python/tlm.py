@@ -24,10 +24,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import _m5.systemc
-
 from _m5.systemc import tlm_global_quantum
+
 
 def tlm_global_quantum_instance():
     return tlm_global_quantum.instance()
 
-__all__ = [ 'tlm_global_quantum_instance' ]
+
+__all__ = ["tlm_global_quantum_instance"]

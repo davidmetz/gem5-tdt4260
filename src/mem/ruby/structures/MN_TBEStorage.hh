@@ -53,6 +53,9 @@ namespace gem5
 namespace ruby
 {
 
+namespace CHI
+{
+
 // MN_TBEStorage is composed of multiple TBEStorage
 // partitions that could be used for specific types of TBEs.
 // Partition number 0 is the generic partition and will
@@ -64,7 +67,7 @@ template <class RetryEntry>
 class MN_TBEStorage
 {
   public:
-    MN_TBEStorage(Stats::Group *parent,
+    MN_TBEStorage(statistics::Group *parent,
                   std::initializer_list<TBEStorage *> _partitions)
       : m_stats(parent),
         partitions(_partitions)
@@ -262,6 +265,8 @@ class MN_TBEStorage
         return end_it;
     }
 };
+
+} // namespace CHI
 
 } // namespace ruby
 

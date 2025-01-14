@@ -28,12 +28,26 @@
 """
 
 from math import log
-from ...utils.override import overrides
+from typing import (
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
+
+from m5.objects import (
+    AddrRange,
+    DRAMInterface,
+    MemCtrl,
+    Port,
+)
 from m5.util.convert import toMemorySize
+
+from ...utils.override import overrides
 from ..boards.abstract_board import AbstractBoard
 from .abstract_memory_system import AbstractMemorySystem
-from m5.objects import AddrRange, DRAMInterface, MemCtrl, Port
-from typing import Type, Sequence, Tuple, List, Optional, Union
 
 
 def _try_convert(val, cls):
@@ -42,12 +56,14 @@ def _try_convert(val, cls):
     except:
         raise Exception(f"Could not convert {val} to {cls}")
 
+
 def _isPow2(num):
     log_num = int(log(num, 2))
-    if 2 ** log_num != num:
+    if 2**log_num != num:
         return False
     else:
         return True
+
 
 class ChanneledMemory(AbstractMemorySystem):
     """A class to implement multi-channel memory system
@@ -55,6 +71,7 @@ class ChanneledMemory(AbstractMemorySystem):
     This class can take a DRAM Interface as a parameter to model a multi
     channel DDR DRAM memory system.
     """
+
     def __init__(
         self,
         dram_interface_class: Type[DRAMInterface],
@@ -65,17 +82,18 @@ class ChanneledMemory(AbstractMemorySystem):
     ) -> None:
         """
         :param dram_interface_class: The DRAM interface type to create with
-            this memory controller
+                                     this memory controller.
         :param num_channels: The number of channels that needs to be
-        simulated
+                             simulated.
         :param size: Optionally specify the size of the DRAM controller's
-            address space. By default, it starts at 0 and ends at the size of
-            the DRAM device specified
+                     address space. By default, it starts at 0 and ends at
+                     the size of the DRAM device specified.
         :param addr_mapping: Defines the address mapping scheme to be used.
-            If None, it is defaulted to addr_mapping from dram_interface_class.
+                             If ``None``, it is defaulted to ``addr_mapping`` from
+                             ``dram_interface_class``.
         :param interleaving_size: Defines the interleaving size of the multi-
-            channel memory system. By default, it is equivalent to the atom
-            size, i.e., 64.
+                                  channel memory system. By default, it is
+                                  equivalent to the atom size, i.e., 64.
         """
         num_channels = _try_convert(num_channels, int)
         interleaving_size = _try_convert(interleaving_size, int)
@@ -104,12 +122,16 @@ class ChanneledMemory(AbstractMemorySystem):
         else:
             self._size = self._get_dram_size(num_channels, self._dram_class)
 
+        self._create_mem_interfaces_controller()
+
+    def _create_mem_interfaces_controller(self):
         self._dram = [
             self._dram_class(addr_mapping=self._addr_mapping)
-            for _ in range(num_channels)
+            for _ in range(self._num_channels)
         ]
+
         self.mem_ctrl = [
-            MemCtrl(dram=self._dram[i]) for i in range(num_channels)
+            MemCtrl(dram=self._dram[i]) for i in range(self._num_channels)
         ]
 
     def _get_dram_size(self, num_channels: int, dram: DRAMInterface) -> int:
@@ -164,6 +186,10 @@ class ChanneledMemory(AbstractMemorySystem):
         return [ctrl for ctrl in self.mem_ctrl]
 
     @overrides(AbstractMemorySystem)
+    def get_mem_interfaces(self) -> List[DRAMInterface]:
+        return self._dram
+
+    @overrides(AbstractMemorySystem)
     def get_size(self) -> int:
         return self._size
 
@@ -176,10 +202,12 @@ class ChanneledMemory(AbstractMemorySystem):
             raise Exception(
                 "Multi channel memory controller requires a single range "
                 "which matches the memory's size.\n"
-                f"The range size: {range[0].size()}\n"
+                f"The range size: {ranges[0].size()}\n"
                 f"This memory's size: {self._size}"
             )
         self._mem_range = ranges[0]
         self._interleave_addresses()
 
-
+    @overrides(AbstractMemorySystem)
+    def get_uninterleaved_range(self) -> List[AddrRange]:
+        return [self._mem_range]

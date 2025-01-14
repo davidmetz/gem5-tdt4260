@@ -27,17 +27,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-from m5.objects import *
-from m5.util import fatal
-
 from importlib import *
 
 from network import Network
 
-class DisjointSimple(SimpleNetwork):
+from m5.objects import *
+from m5.util import fatal
 
+
+class DisjointSimple(SimpleNetwork):
     def __init__(self, ruby_system):
-        super(DisjointSimple, self).__init__()
+        super().__init__()
 
         self.netifs = []
         self.routers = []
@@ -46,62 +46,56 @@ class DisjointSimple(SimpleNetwork):
         self.ruby_system = ruby_system
 
     def connectCPU(self, opts, controllers):
-
         # Setup parameters for makeTopology call for CPU network
-        topo_module = import_module("topologies.%s" % opts.cpu_topology)
+        topo_module = import_module(f"topologies.{opts.cpu_topology}")
         topo_class = getattr(topo_module, opts.cpu_topology)
         _topo = topo_class(controllers)
-        _topo.makeTopology(opts, self, SimpleIntLink,
-                           SimpleExtLink, Switch)
+        _topo.makeTopology(opts, self, SimpleIntLink, SimpleExtLink, Switch)
 
         self.initSimple(opts, self.int_links, self.ext_links)
 
     def connectGPU(self, opts, controllers):
-
         # Setup parameters for makeTopology call for GPU network
-        topo_module = import_module("topologies.%s" % opts.gpu_topology)
+        topo_module = import_module(f"topologies.{opts.gpu_topology}")
         topo_class = getattr(topo_module, opts.gpu_topology)
         _topo = topo_class(controllers)
-        _topo.makeTopology(opts, self, SimpleIntLink,
-                           SimpleExtLink, Switch)
+        _topo.makeTopology(opts, self, SimpleIntLink, SimpleExtLink, Switch)
 
         self.initSimple(opts, self.int_links, self.ext_links)
 
-
     def initSimple(self, opts, int_links, ext_links):
-
         # Attach links to network
         self.int_links = int_links
         self.ext_links = ext_links
 
         self.setup_buffers()
 
-class DisjointGarnet(GarnetNetwork):
 
+class DisjointGarnet(GarnetNetwork):
     def __init__(self, ruby_system):
-        super(DisjointGarnet, self).__init__()
+        super().__init__()
 
         self.netifs = []
         self.ruby_system = ruby_system
 
     def connectCPU(self, opts, controllers):
-
         # Setup parameters for makeTopology call for CPU network
-        topo_module = import_module("topologies.%s" % opts.cpu_topology)
+        topo_module = import_module(f"topologies.{opts.cpu_topology}")
         topo_class = getattr(topo_module, opts.cpu_topology)
         _topo = topo_class(controllers)
-        _topo.makeTopology(opts, self, GarnetIntLink,
-                           GarnetExtLink, GarnetRouter)
+        _topo.makeTopology(
+            opts, self, GarnetIntLink, GarnetExtLink, GarnetRouter
+        )
 
         Network.init_network(opts, self, GarnetNetworkInterface)
 
     def connectGPU(self, opts, controllers):
-
         # Setup parameters for makeTopology call
-        topo_module = import_module("topologies.%s" % opts.gpu_topology)
+        topo_module = import_module(f"topologies.{opts.gpu_topology}")
         topo_class = getattr(topo_module, opts.gpu_topology)
         _topo = topo_class(controllers)
-        _topo.makeTopology(opts, self, GarnetIntLink,
-                           GarnetExtLink, GarnetRouter)
+        _topo.makeTopology(
+            opts, self, GarnetIntLink, GarnetExtLink, GarnetRouter
+        )
 
         Network.init_network(opts, self, GarnetNetworkInterface)

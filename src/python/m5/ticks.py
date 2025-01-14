@@ -25,17 +25,21 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import decimal
-
 import sys
+
 from m5.util import warn
+
 
 # fix the global frequency
 def fixGlobalFrequency():
     import _m5.core
+
     _m5.core.fixClockFrequency()
+
 
 def setGlobalFrequency(ticksPerSecond):
     from m5.util import convert
+
     import _m5.core
 
     if isinstance(ticksPerSecond, int):
@@ -46,23 +50,27 @@ def setGlobalFrequency(ticksPerSecond):
         tps = round(convert.anyToFrequency(ticksPerSecond))
     else:
         raise TypeError(
-            "wrong type '%s' for ticksPerSecond" % type(ticksPerSecond))
+            f"wrong type '{type(ticksPerSecond)}' for ticksPerSecond"
+        )
     _m5.core.setClockFrequency(int(tps))
+
 
 # how big does a rounding error need to be before we warn about it?
 frequency_tolerance = 0.001  # 0.1%
+
 
 def fromSeconds(value):
     import _m5.core
 
     if not isinstance(value, float):
-        raise TypeError("can't convert '%s' to type tick" % type(value))
+        raise TypeError(f"can't convert '{type(value)}' to type tick")
 
     # once someone needs to convert to seconds, the global frequency
     # had better be fixed
     if not _m5.core.clockFrequencyFixed():
         raise AttributeError(
-              "In order to do conversions, the global frequency must be fixed")
+            "In order to do conversions, the global frequency must be fixed"
+        )
 
     if value == 0:
         return 0
@@ -71,12 +79,21 @@ def fromSeconds(value):
     value *= _m5.core.getClockFrequency()
 
     int_value = int(
-            decimal.Decimal(value).to_integral_value( decimal.ROUND_HALF_UP))
+        decimal.Decimal(value).to_integral_value(decimal.ROUND_HALF_UP)
+    )
     err = (value - int_value) / value
     if err > frequency_tolerance:
-        warn("rounding error > tolerance\n    %f rounded to %d", value,
-            int_value)
+        warn(
+            "rounding error > tolerance\n    %f rounded to %d",
+            value,
+            int_value,
+        )
     return int_value
 
-__all__ = [ 'setGlobalFrequency', 'fixGlobalFrequency', 'fromSeconds',
-            'frequency_tolerance' ]
+
+__all__ = [
+    "setGlobalFrequency",
+    "fixGlobalFrequency",
+    "fromSeconds",
+    "frequency_tolerance",
+]

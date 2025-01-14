@@ -33,18 +33,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import *
 from m5.params import *
+from m5.SimObject import *
+
 
 # Represents a group of simobj which produce heat
 class ThermalDomain(SimObject):
-    type = 'ThermalDomain'
+    type = "ThermalDomain"
     cxx_header = "sim/power/thermal_domain.hh"
-    cxx_class = 'gem5::ThermalDomain'
+    cxx_class = "gem5::ThermalDomain"
 
-    cxx_exports = [
-        PyBindMethod("setNode"),
-    ]
+    cxx_exports = [PyBindMethod("setNode")]
 
     # Static temperature which may change over time
     initial_temperature = Param.Temperature("25.0C", "Initial temperature")

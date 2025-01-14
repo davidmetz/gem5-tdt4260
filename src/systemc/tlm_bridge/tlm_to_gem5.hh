@@ -59,6 +59,8 @@
 #define __SYSTEMC_TLM_BRIDGE_TLM_TO_GEM5_HH__
 
 #include <functional>
+#include <unordered_set>
+#include <utility>
 
 #include "mem/port.hh"
 #include "params/TlmToGem5BridgeBase.hh"
@@ -78,7 +80,7 @@ using PayloadToPacketConversionStep =
 
 void addPayloadToPacketConversionStep(PayloadToPacketConversionStep step);
 
-gem5::PacketPtr payload2packet(gem5::RequestorID _id,
+std::pair<gem5::PacketPtr, bool> payload2packet(gem5::RequestorID _id,
     tlm::tlm_generic_payload &trans);
 
 class TlmToGem5BridgeBase : public sc_core::sc_module
@@ -91,12 +93,6 @@ template <unsigned int BITWIDTH>
 class TlmToGem5Bridge : public TlmToGem5BridgeBase
 {
   private:
-    struct TlmSenderState : public gem5::Packet::SenderState
-    {
-        tlm::tlm_generic_payload &trans;
-        TlmSenderState(tlm::tlm_generic_payload &trans) : trans(trans) {}
-    };
-
     class BridgeRequestPort : public gem5::RequestPort
     {
       protected:
@@ -113,7 +109,7 @@ class TlmToGem5Bridge : public TlmToGem5BridgeBase
       public:
         BridgeRequestPort(const std::string &name_,
                          TlmToGem5Bridge<BITWIDTH> &bridge_) :
-            RequestPort(name_, nullptr), bridge(bridge_)
+            RequestPort(name_), bridge(bridge_)
         {}
     };
 
@@ -126,6 +122,8 @@ class TlmToGem5Bridge : public TlmToGem5BridgeBase
     bool needToSendRetry;
 
     bool responseInProgress;
+
+    std::unordered_set<gem5::MemBackdoorPtr> requestedBackdoors;
 
     BridgeRequestPort bmp;
     tlm_utils::simple_target_socket<
@@ -143,9 +141,9 @@ class TlmToGem5Bridge : public TlmToGem5BridgeBase
 
     void destroyPacket(gem5::PacketPtr pkt);
 
-    void checkTransaction(tlm::tlm_generic_payload &trans);
-
     void invalidateDmi(const gem5::MemBackdoor &backdoor);
+
+    void cacheBackdoor(gem5::MemBackdoorPtr backdoor);
 
   protected:
     // payload event call back

@@ -1,3 +1,16 @@
+# -*- mode:python -*-
+# Copyright (c) 2024 Arm Limited
+# All rights reserved.
+#
+# The license below extends only to copyright in the software and shall
+# not be construed as granting a license to any other intellectual
+# property including but not limited to intellectual property relating
+# to a hardware implementation of the functionality of the software
+# licensed hereunder.  You may use the software subject to the license
+# terms below provided that you ensure that this notice is replicated
+# unmodified and in its entirety in all distributions of the software,
+# modified or unmodified, in source code or in binary form.
+#
 # Copyright (c) 2018 Inria
 # All rights reserved.
 #
@@ -28,11 +41,22 @@ from m5.params import *
 from m5.proxy import *
 from m5.SimObject import SimObject
 
+
 class BaseIndexingPolicy(SimObject):
-    type = 'BaseIndexingPolicy'
+    type = "BaseIndexingPolicy"
     abstract = True
-    cxx_class = 'gem5::BaseIndexingPolicy'
+    cxx_class = "gem5::IndexingPolicyTemplate<gem5::AddrTypes>"
     cxx_header = "mem/cache/tags/indexing_policies/base.hh"
+    cxx_template_params = ["class Types"]
+
+    # Get the associativity
+    assoc = Param.Int(Parent.assoc, "associativity")
+
+
+class SetAssociative(BaseIndexingPolicy):
+    type = "SetAssociative"
+    cxx_class = "gem5::SetAssociative"
+    cxx_header = "mem/cache/tags/indexing_policies/set_associative.hh"
 
     # Get the size from the parent (cache)
     size = Param.MemorySize(Parent.size, "capacity in bytes")
@@ -40,15 +64,14 @@ class BaseIndexingPolicy(SimObject):
     # Get the entry size from the parent (tags)
     entry_size = Param.Int(Parent.entry_size, "entry size in bytes")
 
-    # Get the associativity
-    assoc = Param.Int(Parent.assoc, "associativity")
-
-class SetAssociative(BaseIndexingPolicy):
-    type = 'SetAssociative'
-    cxx_class = 'gem5::SetAssociative'
-    cxx_header = "mem/cache/tags/indexing_policies/set_associative.hh"
 
 class SkewedAssociative(BaseIndexingPolicy):
-    type = 'SkewedAssociative'
-    cxx_class = 'gem5::SkewedAssociative'
+    type = "SkewedAssociative"
+    cxx_class = "gem5::SkewedAssociative"
     cxx_header = "mem/cache/tags/indexing_policies/skewed_associative.hh"
+
+    # Get the size from the parent (cache)
+    size = Param.MemorySize(Parent.size, "capacity in bytes")
+
+    # Get the entry size from the parent (tags)
+    entry_size = Param.Int(Parent.entry_size, "entry size in bytes")

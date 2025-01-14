@@ -52,11 +52,11 @@ namespace gem5
 std::string
 RegClassOps::regName(const RegId &id) const
 {
-    return csprintf("r%d", id.index());
+    return csprintf("%s[%d]", id.className(), id.index());
 }
 
 std::string
-RegClassOps::valString(const void *val, size_t size) const
+RegClassOps::valString(const void *val, const size_t& size) const
 {
     // If this is just a RegVal, or could be interpreted as one, print it
     // that way.
@@ -70,15 +70,5 @@ RegClassOps::valString(const void *val, size_t size) const
 
     return printByteBuf(val, size, ByteOrder::big);
 }
-
-const char *RegId::regClassStrings[] = {
-    "IntRegClass",
-    "FloatRegClass",
-    "VecRegClass",
-    "VecElemClass",
-    "VecPredRegClass",
-    "CCRegClass",
-    "MiscRegClass"
-};
 
 } // namespace gem5

@@ -24,17 +24,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.SimObject import *
-
 from m5.objects.BaseKvmCPU import BaseKvmCPU
 from m5.objects.X86CPU import X86CPU
 from m5.objects.X86MMU import X86MMU
+from m5.params import *
+from m5.SimObject import *
+
 
 class X86KvmCPU(BaseKvmCPU, X86CPU):
-    type = 'X86KvmCPU'
+    type = "X86KvmCPU"
     cxx_header = "arch/x86/kvm/x86_cpu.hh"
-    cxx_class = 'gem5::X86KvmCPU'
+    cxx_class = "gem5::X86KvmCPU"
 
     mmu = X86MMU()
 

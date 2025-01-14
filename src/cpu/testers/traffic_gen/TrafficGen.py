@@ -33,8 +33,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.BaseTrafficGen import *
+from m5.params import *
+
 
 # The behaviour of this traffic generator is specified in a
 # configuration file, and this file describes a state transition graph
@@ -45,9 +46,9 @@ from m5.objects.BaseTrafficGen import *
 # arranging them in graphs. The graph transitions can also be
 # annotated with probabilities, effectively making it a Markov Chain.
 class TrafficGen(BaseTrafficGen):
-    type = 'TrafficGen'
+    type = "TrafficGen"
     cxx_header = "cpu/testers/traffic_gen/traffic_gen.hh"
-    cxx_class = 'gem5::TrafficGen'
+    cxx_class = "gem5::TrafficGen"
 
     # Config file to parse for the state descriptions
     config_file = Param.String("Configuration file describing the behaviour")

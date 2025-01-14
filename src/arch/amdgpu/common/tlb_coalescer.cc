@@ -194,7 +194,7 @@ TLBCoalescer::updatePhysAddresses(PacketPtr pkt)
             // the correct TLBEentry in the TLBs above.
             auto p = sender_state->tc->getProcessPtr();
             sender_state->tlbEntry =
-                new TheISA::TlbEntry(p->pid(), first_entry_vaddr,
+                new X86ISA::TlbEntry(p->pid(), first_entry_vaddr,
                     first_entry_paddr, false, false);
 
             // update the hitLevel for all uncoalesced reqs
@@ -482,7 +482,7 @@ TLBCoalescer::processProbeTLBEvent()
                     stats.localqueuingCycles += (curTick() * pkt_cnt);
                 }
 
-                DPRINTF(GPUTLB, "Successfully sent TLB request for page %#x",
+                DPRINTF(GPUTLB, "Successfully sent TLB request for page %#x\n",
                        virt_page_addr);
 
                 //copy coalescedReq to issuedTranslationsTable

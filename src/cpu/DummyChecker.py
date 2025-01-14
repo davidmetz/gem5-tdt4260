@@ -33,10 +33,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.CheckerCPU import CheckerCPU
+from m5.params import *
+
 
 class DummyChecker(CheckerCPU):
-    type = 'DummyChecker'
-    cxx_header = 'cpu/dummy_checker.hh'
-    cxx_class = 'gem5::DummyChecker'
+    type = "DummyChecker"
+    cxx_header = "cpu/dummy_checker.hh"
+    cxx_class = "gem5::DummyChecker"

@@ -43,45 +43,37 @@ scons build/RISCV/gem5.opt
 import m5
 from m5.objects import Root
 
-from gem5.utils.requires import requires
 from gem5.components.boards.riscv_board import RiscvBoard
 from gem5.components.memory import DualChannelDDR4_2400
-from gem5.components.processors.simple_processor import (
-    SimpleProcessor,
-)
 from gem5.components.processors.cpu_types import CPUTypes
+from gem5.components.processors.simple_processor import SimpleProcessor
 from gem5.isas import ISA
-from gem5.coherence_protocol import CoherenceProtocol
-from gem5.resources.resource import Resource
+from gem5.resources.resource import obtain_resource
+from gem5.simulate.exit_event import ExitEvent
 from gem5.simulate.simulator import Simulator
+from gem5.utils.requires import requires
 
 # This runs a check to ensure the gem5 binary is compiled for RISCV.
 
-requires(
-    isa_required=ISA.RISCV,
-)
+requires(isa_required=ISA.RISCV)
 
 # With RISCV, we use simple caches.
-from gem5.components.cachehierarchies.classic\
-    .private_l1_private_l2_cache_hierarchy import (
-    PrivateL1PrivateL2CacheHierarchy,
+from gem5.components.cachehierarchies.classic.private_l1_private_l2_walk_cache_hierarchy import (
+    PrivateL1PrivateL2WalkCacheHierarchy,
 )
+
 # Here we setup the parameters of the l1 and l2 caches.
-cache_hierarchy = PrivateL1PrivateL2CacheHierarchy(
-    l1d_size="16kB",
-    l1i_size="16kB",
-    l2_size="256kB",
+cache_hierarchy = PrivateL1PrivateL2WalkCacheHierarchy(
+    l1d_size="16KiB", l1i_size="16KiB", l2_size="256KiB"
 )
 
 # Memory: Dual Channel DDR4 2400 DRAM device.
 
-memory = DualChannelDDR4_2400(size = "3GB")
+memory = DualChannelDDR4_2400(size="3GiB")
 
 # Here we setup the processor. We use a simple processor.
 processor = SimpleProcessor(
-    cpu_type=CPUTypes.TIMING,
-    isa=ISA.RISCV,
-    num_cores=2,
+    cpu_type=CPUTypes.TIMING, isa=ISA.RISCV, num_cores=2
 )
 
 # Here we setup the board. The RiscvBoard allows for Full-System RISCV
@@ -93,27 +85,34 @@ board = RiscvBoard(
     cache_hierarchy=cache_hierarchy,
 )
 
-# Here we set the Full System workload.
-
-# The `set_kernel_disk_workload` function for the RiscvBoard accepts a
-# RISCV bootloader and a disk image. Once the system successfully boots, it
-# encounters an `m5_exit instruction encountered`. We stop the simulation then.
-# When the simulation has ended you may inspect `m5out/system.pc.com_1.device`
-# to see the stdout.
-
-board.set_kernel_disk_workload(
-    # The RISCV bootloader will be automatically downloaded to the
-    # `~/.cache/gem5` directory if not already present.
-    # The riscv-ubuntu boot-test was tested with riscv-bootloader-5.10
-    kernel=Resource(
-        "riscv-bootloader-vmlinux-5.10",
-    ),
-    # The RISCV ubuntu image will be automatically downloaded to the
-    # `~/.cache/gem5` directory if not already present.
-    disk_image=Resource(
-        "riscv-ubuntu-20.04-img",
-    ),
+# Here we a full system workload: "riscv-ubuntu-20.04-boot" which boots
+# Ubuntu 20.04. Once the system successfully boots it encounters an `m5_exit`
+# instruction which stops the simulation. When the simulation has ended you may
+# inspect `m5out/system.pc.com_1.device` to see the stdout.
+board.set_workload(
+    obtain_resource("riscv-ubuntu-24.04-boot", resource_version="1.0.0")
 )
 
-simulator = Simulator(board=board)
+
+def exit_event_handler():
+    print("First exit: kernel booted")
+    yield False  # gem5 is now executing systemd startup
+    print("Second exit: Started `after_boot.sh` script")
+    # The after_boot.sh script is executed after the kernel and systemd have
+    # booted.
+    yield False  # gem5 is now executing the `after_boot.sh` script
+    print("Third exit: Finished `after_boot.sh` script")
+    # The after_boot.sh script will run a script if it is passed via
+    # m5 readfile. This is the last exit event before the simulation exits.
+    yield True
+
+
+simulator = Simulator(
+    board=board,
+    on_exit_event={
+        # Here we want override the default behavior for the first m5 exit
+        # exit event.
+        ExitEvent.EXIT: exit_event_handler()
+    },
+)
 simulator.run()

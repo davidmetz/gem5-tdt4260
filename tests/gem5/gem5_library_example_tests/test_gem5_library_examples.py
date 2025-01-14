@@ -1,4 +1,4 @@
-# Copyright (c) 2021 The Regents of the University of California
+# Copyright (c) 2021-2023 The Regents of the University of California
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,27 +28,31 @@
 This runs simple tests to ensure the examples in `configs/example/gem5_library`
 still function. They simply check the simulation completed.
 """
-from testlib import *
-import re
 import os
+import re
+
+from testlib import *
+from testlib.log import *
+
+if config.bin_path:
+    resource_path = config.bin_path
+else:
+    resource_path = joinpath(absdirpath(__file__), "..", "resources")
 
 hello_verifier = verifier.MatchRegex(re.compile(r"Hello world!"))
 save_checkpoint_verifier = verifier.MatchRegex(
-    re.compile(r"Done taking a checkpoint"))
+    re.compile(r"Done taking a checkpoint")
+)
 
 gem5_verify_config(
     name="test-gem5-library-example-arm-hello",
     fixtures=(),
     verifiers=(hello_verifier,),
     config=joinpath(
-        config.base_dir,
-        "configs",
-        "example",
-        "gem5_library",
-        "arm-hello.py",
+        config.base_dir, "configs", "example", "gem5_library", "arm-hello.py"
     ),
     config_args=[],
-    valid_isas=(constants.arm_tag,),
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.quick_tag,
 )
@@ -63,10 +67,13 @@ gem5_verify_config(
         "example",
         "gem5_library",
         "checkpoints",
-        "riscv-hello-save-checkpoint.py"
+        "riscv-hello-save-checkpoint.py",
     ),
-    config_args=[],
-    valid_isas=(constants.riscv_tag,),
+    config_args=[
+        "--checkpoint-path",
+        joinpath(resource_path, "riscv-hello-checkpoint-save"),
+    ],
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.quick_tag,
 )
@@ -81,10 +88,49 @@ gem5_verify_config(
         "example",
         "gem5_library",
         "checkpoints",
-        "riscv-hello-restore-checkpoint.py"
+        "riscv-hello-restore-checkpoint.py",
     ),
     config_args=[],
-    valid_isas=(constants.riscv_tag,),
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.quick_tag,
+)
+
+gem5_verify_config(
+    name="test-simpoints-se-checkpoint",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "checkpoints",
+        "simpoints-se-checkpoint.py",
+    ),
+    config_args=[
+        "--checkpoint-path",
+        joinpath(resource_path, "se_checkpoint_folder-save"),
+    ],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.quick_tag,
+)
+
+gem5_verify_config(
+    name="test-simpoints-se-restore",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "checkpoints",
+        "simpoints-se-restore.py",
+    ),
+    config_args=[],
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.quick_tag,
 )
@@ -104,7 +150,7 @@ if os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
             "x86-ubuntu-run-with-kvm.py",
         ),
         config_args=[],
-        valid_isas=(constants.x86_tag,),
+        valid_isas=(constants.all_compiled_tag,),
         valid_hosts=(constants.host_x86_64_tag,),
         length=constants.long_tag,
         uses_kvm=True,
@@ -122,12 +168,19 @@ gem5_verify_config(
         "x86-ubuntu-run.py",
     ),
     config_args=[],
-    valid_isas=(constants.x86_tag,),
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.long_tag,
 )
 
-if os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
+log.test_log.message(
+    "PARSEC tests are disabled. This is due to our GitHub "
+    "Actions self-hosted runners only having 60GB of disk space. The "
+    "PARSEC Disk image is too big to use.",
+    level=LogLevel.Warn,
+)
+# 'False' is used to disable the tests.
+if False:  # os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
     # The x86-parsec-benchmarks uses KVM cores, this test will therefore only
     # be run on systems that support KVM.
     gem5_verify_config(
@@ -141,9 +194,8 @@ if os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
             "gem5_library",
             "x86-parsec-benchmarks.py",
         ),
-        config_args=["--benchmark","blackscholes","--size","simsmall"],
-        valid_isas=(constants.x86_tag,),
-        protocol="MESI_Two_Level",
+        config_args=["--benchmark", "blackscholes", "--size", "simsmall"],
+        valid_isas=(constants.all_compiled_tag,),
         valid_hosts=(constants.host_x86_64_tag,),
         length=constants.long_tag,
         uses_kvm=True,
@@ -163,15 +215,13 @@ if os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
             "gem5_library",
             "x86-npb-benchmarks.py",
         ),
-        config_args=["--benchmark",
-            "bt",
-            "--size",
-            "A",
+        config_args=[
+            "--benchmark",
+            "npb-bt-a",
             "--ticks",
-            "5000000000"
+            "5000000000",
         ],
-        valid_isas=(constants.x86_tag,),
-        protocol="MESI_Two_Level",
+        valid_isas=(constants.all_compiled_tag,),
         valid_hosts=(constants.host_x86_64_tag,),
         length=constants.long_tag,
         uses_kvm=True,
@@ -191,9 +241,8 @@ if os.access("/dev/kvm", mode=os.R_OK | os.W_OK):
             "gem5_library",
             "x86-gapbs-benchmarks.py",
         ),
-        config_args=["--benchmark","bfs","--synthetic","1","--size","1"],
-        valid_isas=(constants.x86_tag,),
-        protocol="MESI_Two_Level",
+        config_args=["--benchmark", "gapbs-bfs-test"],
+        valid_isas=(constants.all_compiled_tag,),
         valid_hosts=(constants.host_x86_64_tag,),
         length=constants.long_tag,
         uses_kvm=True,
@@ -211,7 +260,7 @@ gem5_verify_config(
         "riscv-ubuntu-run.py",
     ),
     config_args=[],
-    valid_isas=(constants.riscv_tag,),
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.long_tag,
 )
@@ -221,20 +270,16 @@ gem5_verify_config(
     fixtures=(),
     verifiers=(),
     config=joinpath(
-        config.base_dir,
-        "configs",
-        "example",
-        "lupv",
-        "run_lupv.py",
+        config.base_dir, "configs", "example", "lupv", "run_lupv.py"
     ),
     config_args=["timing", "1", "--max-ticks", "1000000000"],
-    valid_isas=(constants.riscv_tag,),
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.long_tag,
 )
 
 gem5_verify_config(
-    name="test-gem5-library-example-arm-ubuntu-boot-test",
+    name="test-gem5-library-example-arm-ubuntu-run-test",
     fixtures=(),
     verifiers=(),
     config=joinpath(
@@ -242,10 +287,198 @@ gem5_verify_config(
         "configs",
         "example",
         "gem5_library",
-        "arm-ubuntu-boot-exit.py",
+        "arm-ubuntu-run.py",
     ),
     config_args=[],
-    valid_isas=(constants.arm_tag,),
+    valid_isas=(constants.all_compiled_tag,),
     valid_hosts=constants.supported_hosts,
     length=constants.long_tag,
 )
+
+gem5_verify_config(
+    name="test-gem5-library-example-riscvmatched-hello",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "riscvmatched-hello.py",
+    ),
+    config_args=[],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.long_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-riscvmatched-fs",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "riscvmatched-fs.py",
+    ),
+    config_args=["--to-init"],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.very_long_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-riscvmatched-microbenchmark-suite",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "riscvmatched-microbenchmark-suite.py",
+    ),
+    config_args=[],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.long_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-multisim-fs-x86-npb",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "multisim",
+        "multisim-fs-x86-npb.py",
+    ),
+    config_args=[],
+    gem5_args=["-m", "gem5.utils.multisim"],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.long_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-multisim-print-this",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "multisim",
+        "multisim-print-this.py",
+    ),
+    config_args=[],
+    gem5_args=["-m", "gem5.utils.multisim"],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.quick_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-multisim-print-this-list",
+    fixtures=(),
+    verifiers=(
+        verifier.MatchStdoutNoPerf(
+            joinpath(getcwd(), "ref/simout_multisim_print_this_list.txt")
+        ),
+    ),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "multisim",
+        "multisim-print-this.py",
+    ),
+    config_args=["--list"],
+    gem5_args=[],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.quick_tag,
+)
+
+gem5_verify_config(
+    name="test-gem5-library-example-multisim-print-this-single-process",
+    fixtures=(),
+    verifiers=(),
+    config=joinpath(
+        config.base_dir,
+        "configs",
+        "example",
+        "gem5_library",
+        "multisim",
+        "multisim-print-this.py",
+    ),
+    config_args=["process_1"],
+    gem5_args=[],
+    valid_isas=(constants.all_compiled_tag,),
+    valid_hosts=constants.supported_hosts,
+    length=constants.quick_tag,
+)
+
+# The LoopPoint-Checkpointing feature is still under development, therefore
+# these tests are temporarily disabled until this feature is complete.#
+
+# gem5_verify_config(
+#    name="test-gem5-library-create-looppoint-checkpoints",
+#    fixtures=(),
+#    verifiers=(),
+#    config=joinpath(
+#        config.base_dir,
+#        "configs",
+#        "example",
+#        "gem5_library",
+#        "looppoints",
+#        "create-looppoint-checkpoint.py",
+#    ),
+#    config_args=[
+#        "--checkpoint-path",
+#        joinpath(resource_path, "looppoint-checkpoint-save"),
+#    ],
+#    valid_isas=(constants.all_compiled_tag,),
+#    valid_hosts=constants.supported_hosts,
+#    length=constants.very_long_tag,
+# )
+
+# for region in (
+#    "1",
+#    "2",
+#    "3",
+#    "5",
+#    "6",
+#    "7",
+#    "8",
+#    "9",
+#    "10",
+#    "11",
+#    "12",
+#    "13",
+#    "14",
+# ):
+#    gem5_verify_config(
+#        name=f"test-gem5-library-restore-looppoint-checkpoint-region-f{region}",
+#        fixtures=(),
+#        verifiers=(),
+#        config=joinpath(
+#            config.base_dir,
+#            "configs",
+#            "example",
+#            "gem5_library",
+#            "looppoints",
+#            "restore-looppoint-checkpoint.py",
+#        ),
+#        config_args=["--checkpoint-region", region],
+#        valid_isas=(constants.all_compiled_tag,),
+#        valid_hosts=constants.supported_hosts,
+#        length=constants.very_long_tag,
+#    )

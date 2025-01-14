@@ -42,7 +42,6 @@
 #ifndef __REMOTE_GDB_HH__
 #define __REMOTE_GDB_HH__
 
-#include <sys/signal.h>
 
 #include <cstdint>
 #include <exception>
@@ -56,6 +55,7 @@
 #include "base/socket.hh"
 #include "base/types.hh"
 #include "cpu/pc_event.hh"
+#include "gdbremote/signals.hh"
 #include "sim/debug.hh"
 #include "sim/eventq.hh"
 
@@ -93,7 +93,7 @@ class BaseGdbRegCache
      *
      * @ingroup api_remote_gdb
      */
-    virtual char *data() const = 0;
+    virtual char *data() = 0;
 
     /**
      * Return the size of the raw buffer, in bytes
@@ -153,7 +153,7 @@ class BaseRemoteGDB
     /**
      * Interface to other parts of the simulator.
      */
-    BaseRemoteGDB(System *system, int _port);
+    BaseRemoteGDB(System *system, ListenSocketConfig _listen_config);
     virtual ~BaseRemoteGDB();
 
     std::string name();
@@ -161,7 +161,7 @@ class BaseRemoteGDB
     void listen();
     void connect();
 
-    int port() const;
+    const ListenSocket &hostSocket() const;
 
     void attach(int fd);
     void detach();
@@ -171,22 +171,24 @@ class BaseRemoteGDB
     void replaceThreadContext(ThreadContext *_tc);
     bool selectThreadContext(ContextID id);
 
-    void trap(ContextID id, int signum);
-
+    void trap(ContextID id, GDBSignal sig,const std::string& stopReason="");
+    bool sendMessage(std::string message);
+    //schedule a trap event with these properties
+    void scheduleTrapEvent(ContextID id,GDBSignal type, int delta,
+      std::string stopReason);
     /** @} */ // end of api_remote_gdb
 
     template <class GDBStub, class ...Args>
     static BaseRemoteGDB *
-    build(Args... args)
+    build(ListenSocketConfig listen_config, Args... args)
     {
-        int port = getRemoteGDBPort();
-        if (port)
-            return new GDBStub(args..., port);
+        if (listen_config)
+            return new GDBStub(args..., listen_config);
         else
             return nullptr;
     }
 
-  private:
+  protected:
     /*
      * Connection to the external GDB.
      */
@@ -229,14 +231,14 @@ class BaseRemoteGDB
     IncomingConnectionEvent *incomingConnectionEvent;
     IncomingDataEvent *incomingDataEvent;
 
-    ListenSocket listener;
-    int _port;
+    ListenSocketPtr listener;
 
     // The socket commands come in through.
     int fd;
 
     // Transfer data to/from GDB.
     uint8_t getbyte();
+    bool try_getbyte(uint8_t* c,int timeout=-1);//return true if successful
     void putbyte(uint8_t b);
 
     void recv(std::vector<char> &bp);
@@ -256,7 +258,7 @@ class BaseRemoteGDB
      * or SW trap), 'signum' is the signal value reported back to GDB
      * in "S" packet (this is done in trap()).
      */
-    void processCommands(int signum=0);
+    void processCommands(GDBSignal sig=GDBSignal::ZERO);
 
     /*
      * Simulator side debugger state.
@@ -271,53 +273,64 @@ class BaseRemoteGDB
 
     BaseGdbRegCache *regCachePtr = nullptr;
 
-    EventWrapper<BaseRemoteGDB, &BaseRemoteGDB::connect> connectEvent;
-    EventWrapper<BaseRemoteGDB, &BaseRemoteGDB::detach>  disconnectEvent;
+    MemberEventWrapper<&BaseRemoteGDB::connect> connectEvent;
+    MemberEventWrapper<&BaseRemoteGDB::detach>  disconnectEvent;
 
     class TrapEvent : public Event
     {
       protected:
-        int _type;
+        GDBSignal _type;
         ContextID _id;
+        std::string _stopReason;
         BaseRemoteGDB *gdb;
 
       public:
         TrapEvent(BaseRemoteGDB *g) : gdb(g)
         {}
 
-        void type(int t) { _type = t; }
+        void type(GDBSignal t) { _type = t; }
+        void stopReason(std::string s) {_stopReason = s; }
         void id(ContextID id) { _id = id; }
-        void process() { gdb->trap(_id, _type); }
+         void process() { gdb->trap(_id, _type,_stopReason); }
     } trapEvent;
 
     /*
      * The interface to the simulated system.
      */
-    // Machine memory.
-    bool read(Addr addr, size_t size, char *data);
-    bool write(Addr addr, size_t size, const char *data);
+    virtual bool readBlob(Addr vaddr, size_t size, char *data);
+    virtual bool writeBlob(Addr vaddr, size_t size, const char *data);
+    bool read(Addr vaddr, size_t size, char *data);
+    bool write(Addr vaddr, size_t size, const char *data);
 
     template <class T> T read(Addr addr);
     template <class T> void write(Addr addr, T data);
 
     // Single step.
     void singleStep();
-    EventWrapper<BaseRemoteGDB, &BaseRemoteGDB::singleStep> singleStepEvent;
+    MemberEventWrapper<&BaseRemoteGDB::singleStep> singleStepEvent;
 
     void clearSingleStep();
     void setSingleStep();
 
     /// Schedule an event which will be triggered "delta" instructions later.
-    void scheduleInstCommitEvent(Event *ev, int delta);
+    void scheduleInstCommitEvent(Event *ev, int delta,ThreadContext* _tc);
+    void scheduleInstCommitEvent(Event *ev, int delta){
+       scheduleInstCommitEvent(ev, delta,tc);
+    };
     /// Deschedule an instruction count based event.
     void descheduleInstCommitEvent(Event *ev);
 
     // Breakpoints.
-    void insertSoftBreak(Addr addr, size_t kind);
-    void removeSoftBreak(Addr addr, size_t kind);
-    void insertHardBreak(Addr addr, size_t kind);
-    void removeHardBreak(Addr addr, size_t kind);
+    virtual void insertSoftBreak(Addr addr, size_t kind);
+    virtual void removeSoftBreak(Addr addr, size_t kind);
+    virtual void insertHardBreak(Addr addr, size_t kind);
+    virtual void removeHardBreak(Addr addr, size_t kind);
 
+    void sendTPacket(GDBSignal sig, ContextID id,
+      const std::string& stopReason);
+    void sendSPacket(GDBSignal sig);
+    //The OPacket allow to send string to be displayed by the remote GDB
+    void sendOPacket(const std::string message);
     /*
      * GDB commands.
      */
@@ -328,7 +341,7 @@ class BaseRemoteGDB
         {
             const GdbCommand *cmd;
             char cmdByte;
-            int type;
+            GDBSignal type;
             char *data;
             int len;
         };
@@ -343,6 +356,30 @@ class BaseRemoteGDB
 
     static std::map<char, GdbCommand> commandMap;
 
+    struct GdbMultiLetterCommand
+    {
+      public:
+        struct Context
+        {
+            const GdbMultiLetterCommand *cmd;
+            std::string cmdTxt;
+            GDBSignal type;
+            char *data;
+            int len;
+        };
+
+        typedef bool (BaseRemoteGDB::*Func)(Context &ctx);
+
+        const char * const name;
+        const Func func;
+
+        GdbMultiLetterCommand(const char *_name, Func _func) :
+          name(_name), func(_func) {}
+    };
+
+
+    static std::map<std::string, GdbMultiLetterCommand> multiLetterMap;
+
     bool cmdUnsupported(GdbCommand::Context &ctx);
 
     bool cmdSignal(GdbCommand::Context &ctx);
@@ -352,6 +389,7 @@ class BaseRemoteGDB
     bool cmdRegR(GdbCommand::Context &ctx);
     bool cmdRegW(GdbCommand::Context &ctx);
     bool cmdSetThread(GdbCommand::Context &ctx);
+    bool cmdIsThreadAlive(GdbCommand::Context &ctx);
     bool cmdMemR(GdbCommand::Context &ctx);
     bool cmdMemW(GdbCommand::Context &ctx);
     bool cmdQueryVar(GdbCommand::Context &ctx);
@@ -360,6 +398,13 @@ class BaseRemoteGDB
     bool cmdClrHwBkpt(GdbCommand::Context &ctx);
     bool cmdSetHwBkpt(GdbCommand::Context &ctx);
     bool cmdDumpPageTable(GdbCommand::Context &ctx);
+    bool cmdMultiLetter(GdbCommand::Context &ctx);
+
+    //Multi letter command
+    bool cmdMultiUnsupported(GdbMultiLetterCommand::Context &ctx);
+
+    bool cmdReplyEmpty(GdbMultiLetterCommand::Context &ctx);
+    bool cmdVKill(GdbMultiLetterCommand::Context &ctx);
 
     struct QuerySetCommand
     {
@@ -371,7 +416,7 @@ class BaseRemoteGDB
             Context(const std::string &_name) : name(_name) {}
         };
 
-        using Func = void (BaseRemoteGDB::*)(Context &ctx);
+        using Func = bool (BaseRemoteGDB::*)(Context &ctx);
 
         const char * const argSep;
         const Func func;
@@ -383,13 +428,16 @@ class BaseRemoteGDB
 
     static std::map<std::string, QuerySetCommand> queryMap;
 
-    void queryC(QuerySetCommand::Context &ctx);
-    void querySupported(QuerySetCommand::Context &ctx);
-    void queryXfer(QuerySetCommand::Context &ctx);
+    bool queryC(QuerySetCommand::Context &ctx);
+    bool querySupported(QuerySetCommand::Context &ctx);
+    bool queryXfer(QuerySetCommand::Context &ctx);
+    bool querySymbol(QuerySetCommand::Context &ctx);
+    bool queryRcmd(QuerySetCommand::Context &ctx);
+    bool queryAttached(QuerySetCommand::Context &ctx);
 
     size_t threadInfoIdx = 0;
-    void queryFThreadInfo(QuerySetCommand::Context &ctx);
-    void querySThreadInfo(QuerySetCommand::Context &ctx);
+    bool queryFThreadInfo(QuerySetCommand::Context &ctx);
+    bool querySThreadInfo(QuerySetCommand::Context &ctx);
 
   protected:
     ThreadContext *context() { return tc; }

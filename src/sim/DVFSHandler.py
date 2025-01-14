@@ -34,25 +34,27 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.params import *
-from m5.SimObject import SimObject
 from m5.proxy import *
+from m5.SimObject import SimObject
+
 
 # The handler in its current form is design to be centeralized, one per system
 # and manages all the source clock domains (SrcClockDomain) it is configured to
 # handle.  The specific voltage and frequency points are configured per clock
 # and voltage domain.
 class DVFSHandler(SimObject):
-    type = 'DVFSHandler'
+    type = "DVFSHandler"
     cxx_header = "sim/dvfs_handler.hh"
-    cxx_class = 'gem5::DVFSHandler'
+    cxx_class = "gem5::DVFSHandler"
 
     # List of controllable clock domains which in turn reference the appropriate
     # voltage domains
     domains = VectorParam.SrcClockDomain([], "list of domains")
 
     # System domain (its clock and voltage) is not controllable
-    sys_clk_domain = Param.SrcClockDomain(Parent.clk_domain,
-                         "Clk domain in which the handler is instantiated")
+    sys_clk_domain = Param.SrcClockDomain(
+        Parent.clk_domain, "Clk domain in which the handler is instantiated"
+    )
 
     enable = Param.Bool(False, "Enable/Disable the handler")
 
@@ -62,5 +64,6 @@ class DVFSHandler(SimObject):
     # accomodate this effect with ease, we provide a fixed transition latency
     # associated with all migrations. Configure this to maximum latency that
     # the hardware will take to migratate between any two perforamnce levels.
-    transition_latency = Param.Latency('100us',
-                             "fixed latency for perf level migration")
+    transition_latency = Param.Latency(
+        "100us", "fixed latency for perf level migration"
+    )

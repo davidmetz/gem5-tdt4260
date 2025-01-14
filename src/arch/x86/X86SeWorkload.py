@@ -23,16 +23,18 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.Workload import SEWorkload
 from m5.params import *
 
-from m5.objects.Workload import SEWorkload
 
 class X86EmuLinux(SEWorkload):
-    type = 'X86EmuLinux'
+    type = "X86EmuLinux"
     cxx_header = "arch/x86/linux/se_workload.hh"
-    cxx_class = 'gem5::X86ISA::EmuLinux'
+    cxx_class = "gem5::X86ISA::EmuLinux"
 
     @classmethod
     def _is_compatible_with(cls, obj):
-        return obj.get_arch() in ('x86_64', 'i386') and \
-                obj.get_op_sys() in ('linux', 'unknown')
+        return obj.get_arch() in ("x86_64", "i386") and obj.get_op_sys() in (
+            "linux",
+            "unknown",
+        )

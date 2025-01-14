@@ -41,8 +41,6 @@ namespace gem5
 namespace X86ISA
 {
 
-X86ISAInst::MicrocodeRom Decoder::microcodeRom;
-
 Decoder::State
 Decoder::doResetState()
 {
@@ -671,9 +669,6 @@ Decoder::doImmediateState()
     return nextState;
 }
 
-Decoder::InstBytes Decoder::dummy;
-Decoder::InstCacheMap Decoder::instCacheMap;
-
 StaticInstPtr
 Decoder::decode(ExtMachInst mach_inst, Addr addr)
 {
@@ -686,6 +681,8 @@ Decoder::decode(ExtMachInst mach_inst, Addr addr)
         si = decodeInst(mach_inst);
         (*instMap)[mach_inst] = si;
     }
+
+    si->size(basePC + offset - origPC);
 
     DPRINTF(Decode, "Decode: Decoded %s instruction: %#x\n",
             si->getName(), mach_inst);
@@ -732,8 +729,7 @@ Decoder::decode(PCStateBase &next_pc)
         start = 0;
     }
 
-    si = decode(emi, origPC);
-    return si;
+    return decode(emi, origPC);
 }
 
 StaticInstPtr

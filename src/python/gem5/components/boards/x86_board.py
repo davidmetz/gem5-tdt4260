@@ -25,49 +25,55 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from .kernel_disk_workload import KernelDiskWorkload
-from ...resources.resource import AbstractResource
-from ...utils.override import overrides
-from .abstract_system_board import AbstractSystemBoard
-from ...isas import ISA
-
-from m5.objects import (
-    Pc,
-    AddrRange,
-    X86FsLinux,
-    Addr,
-    X86SMBiosBiosInformation,
-    X86IntelMPProcessor,
-    X86IntelMPIOAPIC,
-    X86IntelMPBus,
-    X86IntelMPBusHierarchy,
-    X86IntelMPIOIntAssignment,
-    X86E820Entry,
-    Bridge,
-    IOXBar,
-    IdeDisk,
-    CowDiskImage,
-    RawDiskImage,
-    BaseXBar,
-    Port,
+from typing import (
+    List,
+    Sequence,
 )
 
+from m5.objects import (
+    Addr,
+    AddrRange,
+    BaseXBar,
+    Bridge,
+    CowDiskImage,
+    IdeDisk,
+    IOXBar,
+    Pc,
+    Port,
+    RawDiskImage,
+    X86ACPIMadt,
+    X86ACPIMadtIntSourceOverride,
+    X86ACPIMadtIOAPIC,
+    X86ACPIMadtLAPIC,
+    X86E820Entry,
+    X86FsLinux,
+    X86IntelMPBus,
+    X86IntelMPBusHierarchy,
+    X86IntelMPIOAPIC,
+    X86IntelMPIOIntAssignment,
+    X86IntelMPProcessor,
+    X86SMBiosBiosInformation,
+)
 from m5.util.convert import toMemorySize
 
-from ..processors.abstract_processor import AbstractProcessor
-from ..memory.abstract_memory_system import AbstractMemorySystem
+from ...components.boards.se_binary_workload import SEBinaryWorkload
+from ...isas import ISA
+from ...resources.resource import AbstractResource
+from ...utils.override import overrides
 from ..cachehierarchies.abstract_cache_hierarchy import AbstractCacheHierarchy
+from ..memory.abstract_memory_system import AbstractMemorySystem
+from ..processors.abstract_processor import AbstractProcessor
+from .abstract_system_board import AbstractSystemBoard
+from .kernel_disk_workload import KernelDiskWorkload
 
-from typing import List, Sequence
 
-
-class X86Board(AbstractSystemBoard, KernelDiskWorkload):
+class X86Board(AbstractSystemBoard, KernelDiskWorkload, SEBinaryWorkload):
     """
     A board capable of full system simulation for X86.
 
     **Limitations**
-    * Currently, this board's memory is hardcoded to 3GB
-    * Much of the I/O subsystem is hard coded
+    * Currently, this board's memory is hardcoded to 3GiB.
+    * Much of the I/O subsystem is hard coded.
     """
 
     def __init__(
@@ -85,28 +91,33 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
         )
 
         if self.get_processor().get_isa() != ISA.X86:
-            raise Exception("The X86Board requires a processor using the X86 "
-                f"ISA. Current processor ISA: '{processor.get_isa().name}'.")
+            raise Exception(
+                "The X86Board requires a processor using the X86 "
+                f"ISA. Current processor ISA: '{processor.get_isa().name}'."
+            )
 
     @overrides(AbstractSystemBoard)
     def _setup_board(self) -> None:
-        self.pc = Pc()
+        if self.is_fullsystem():
+            self.pc = Pc()
 
-        self.workload = X86FsLinux()
+            self.workload = X86FsLinux()
 
-        # North Bridge
-        self.iobus = IOXBar()
+            # North Bridge
+            self.iobus = IOXBar()
 
-        # Set up all of the I/O.
-        self._setup_io_devices()
+            # Set up all of the I/O.
+            self._setup_io_devices()
 
-        self.m5ops_base = 0xffff0000
+            self.m5ops_base = 0xFFFF0000
 
     def _setup_io_devices(self):
-        """ Sets up the x86 IO devices.
+        """Sets up the x86 IO devices.
 
-        Note: This is mostly copy-paste from prior X86 FS setups. Some of it
-        may not be documented and there may be bugs.
+        .. note::
+
+            This is mostly copy-paste from prior X86 FS setups. Some of it
+            may not be documented and there may be bugs.
         """
 
         # Constants similar to x86_traits.hh
@@ -160,6 +171,8 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
         # Set up the Intel MP table
         base_entries = []
         ext_entries = []
+        # Updated the X86 board with MADT entries.
+        madt_entries = []
         for i in range(self.get_processor().get_num_cores()):
             bp = X86IntelMPProcessor(
                 local_apic_id=i,
@@ -168,6 +181,8 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
                 bootstrap=(i == 0),
             )
             base_entries.append(bp)
+            lapic = X86ACPIMadtLAPIC(acpi_processor_id=i, apic_id=i, flags=1)
+            madt_entries.append(lapic)
 
         io_apic = X86IntelMPIOAPIC(
             id=self.get_processor().get_num_cores(),
@@ -178,6 +193,12 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
 
         self.pc.south_bridge.io_apic.apic_id = io_apic.id
         base_entries.append(io_apic)
+        madt_entries.append(
+            X86ACPIMadtIOAPIC(
+                id=io_apic.id, address=io_apic.address, int_base=0
+            )
+        )
+
         pci_bus = X86IntelMPBus(bus_id=0, bus_type="PCI   ")
         base_entries.append(pci_bus)
         isa_bus = X86IntelMPBus(bus_id=1, bus_type="ISA   ")
@@ -198,9 +219,15 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
         )
 
         base_entries.append(pci_dev4_inta)
+        pci_dev4_inta_madt = X86ACPIMadtIntSourceOverride(
+            bus_source=pci_dev4_inta.source_bus_id,
+            irq_source=pci_dev4_inta.source_bus_irq,
+            sys_int=pci_dev4_inta.dest_io_apic_intin,
+            flags=0,
+        )
+        madt_entries.append(pci_dev4_inta_madt)
 
         def assignISAInt(irq, apicPin):
-
             assign_8259_to_apic = X86IntelMPIOIntAssignment(
                 interrupt_type="ExtInt",
                 polarity="ConformPolarity",
@@ -222,6 +249,11 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
                 dest_io_apic_intin=apicPin,
             )
             base_entries.append(assign_to_apic)
+            # acpi
+            assign_to_apic_acpi = X86ACPIMadtIntSourceOverride(
+                bus_source=1, irq_source=irq, sys_int=apicPin, flags=0
+            )
+            madt_entries.append(assign_to_apic_acpi)
 
         assignISAInt(0, 2)
         assignISAInt(1, 1)
@@ -232,10 +264,18 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
         self.workload.intel_mp_table.base_entries = base_entries
         self.workload.intel_mp_table.ext_entries = ext_entries
 
+        madt = X86ACPIMadt(
+            local_apic_address=0, records=madt_entries, oem_id="madt"
+        )
+        self.workload.acpi_description_table_pointer.rsdt.entries.append(madt)
+        self.workload.acpi_description_table_pointer.xsdt.entries.append(madt)
+        self.workload.acpi_description_table_pointer.oem_id = "gem5"
+        self.workload.acpi_description_table_pointer.rsdt.oem_id = "gem5"
+        self.workload.acpi_description_table_pointer.xsdt.oem_id = "gem5"
         entries = [
             # Mark the first megabyte of memory as reserved
-            X86E820Entry(addr=0, size="639kB", range_type=1),
-            X86E820Entry(addr=0x9FC00, size="385kB", range_type=2),
+            X86E820Entry(addr=0, size="639KiB", range_type=1),
+            X86E820Entry(addr=0x9FC00, size="385KiB", range_type=2),
             # Mark the rest of physical memory as available
             X86E820Entry(
                 addr=0x100000,
@@ -244,45 +284,64 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
             ),
         ]
 
-        # Reserve the last 16kB of the 32-bit address space for m5ops
+        # Reserve the last 16KiB of the 32-bit address space for m5ops
         entries.append(
-            X86E820Entry(addr=0xFFFF0000, size="64kB", range_type=2)
+            X86E820Entry(addr=0xFFFF0000, size="64KiB", range_type=2)
         )
 
         self.workload.e820_table.entries = entries
 
     @overrides(AbstractSystemBoard)
     def has_io_bus(self) -> bool:
-        return True
+        return self.is_fullsystem()
 
     @overrides(AbstractSystemBoard)
-    def get_io_bus(self) -> BaseXBar:
-        return self.iobus
+    def get_io_bus(self) -> IOXBar:
+        if self.has_io_bus():
+            return self.iobus
+        else:
+            raise Exception(
+                "Cannot execute `get_io_bus()`: Board does not have an I/O "
+                "bus to return. Use `has_io_bus()` to check this."
+            )
 
     @overrides(AbstractSystemBoard)
     def has_dma_ports(self) -> bool:
-        return True
+        return self.is_fullsystem()
 
     @overrides(AbstractSystemBoard)
     def get_dma_ports(self) -> Sequence[Port]:
-        return [self.pc.south_bridge.ide.dma, self.iobus.mem_side_ports]
+        if self.has_dma_ports():
+            return [self.pc.south_bridge.ide.dma, self.iobus.mem_side_ports]
+        else:
+            raise Exception(
+                "Cannot execute `get_dma_ports()`: Board does not have DMA "
+                "ports to return. Use `has_dma_ports()` to check this."
+            )
 
     @overrides(AbstractSystemBoard)
     def has_coherent_io(self) -> bool:
-        return True
+        return self.is_fullsystem()
 
     @overrides(AbstractSystemBoard)
     def get_mem_side_coherent_io_port(self) -> Port:
-        return self.iobus.mem_side_ports
+        if self.has_coherent_io():
+            return self.iobus.mem_side_ports
+        else:
+            raise Exception(
+                "Cannot execute `get_mem_side_coherent_io_port()`: Board does "
+                "not have I/O ports to return. Use `has_coherent_io()` to "
+                "check this."
+            )
 
     @overrides(AbstractSystemBoard)
     def _setup_memory_ranges(self):
         memory = self.get_memory()
 
-        if memory.get_size() > toMemorySize("3GB"):
+        if memory.get_size() > toMemorySize("3GiB"):
             raise Exception(
                 "X86Board currently only supports memory sizes up "
-                "to 3GB because of the I/O hole."
+                "to 3GiB because of the I/O hole."
             )
         data_range = AddrRange(memory.get_size())
         memory.set_memory_range([data_range])
@@ -316,4 +375,5 @@ class X86Board(AbstractSystemBoard, KernelDiskWorkload):
             "console=ttyS0",
             "lpj=7999923",
             "root={root_value}",
+            "disk_device={disk_device}",
         ]

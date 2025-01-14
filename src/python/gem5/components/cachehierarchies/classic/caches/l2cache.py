@@ -24,11 +24,16 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .....utils.override import *
-
-from m5.objects import Cache, BasePrefetcher, StridePrefetcher
-
 from typing import Type
+
+from m5.objects import (
+    BasePrefetcher,
+    Cache,
+    Clusivity,
+    StridePrefetcher,
+)
+
+from .....utils.override import *
 
 
 class L2Cache(Cache):
@@ -45,7 +50,8 @@ class L2Cache(Cache):
         response_latency: int = 1,
         mshrs: int = 20,
         tgts_per_mshr: int = 12,
-        writeback_clean: bool = True,
+        writeback_clean: bool = False,
+        clusivity: Clusivity = "mostly_incl",
         PrefetcherCls: Type[BasePrefetcher] = StridePrefetcher,
     ):
         super().__init__()
@@ -57,4 +63,5 @@ class L2Cache(Cache):
         self.mshrs = mshrs
         self.tgts_per_mshr = tgts_per_mshr
         self.writeback_clean = writeback_clean
+        self.clusivity = clusivity
         self.prefetcher = PrefetcherCls()

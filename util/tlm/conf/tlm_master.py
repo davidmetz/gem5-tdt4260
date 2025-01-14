@@ -29,10 +29,10 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
+
 import m5
 from m5.objects import *
-
-import os
 
 # Base System Architecture:
 #         +-----+           ^
@@ -50,10 +50,11 @@ import os
 
 # Create a system with a Crossbar and a simple Memory:
 system = System()
-system.membus = IOXBar(width = 16)
-system.physmem = SimpleMemory(range = AddrRange('512MB'))
-system.clk_domain = SrcClockDomain(clock = '1.5GHz',
-    voltage_domain = VoltageDomain(voltage = '1V'))
+system.membus = IOXBar(width=16)
+system.physmem = SimpleMemory(range=AddrRange("512MiB"))
+system.clk_domain = SrcClockDomain(
+    clock="1.5GHz", voltage_domain=VoltageDomain(voltage="1V")
+)
 
 # Create a external TLM port:
 system.tlm = ExternalMaster()
@@ -64,9 +65,9 @@ system.tlm.port_data = "transactor"
 system.system_port = system.membus.slave
 system.physmem.port = system.membus.master
 system.tlm.port = system.membus.slave
-system.mem_mode = 'timing'
+system.mem_mode = "timing"
 
 # Start the simulation:
-root = Root(full_system = False, system = system)
+root = Root(full_system=False, system=system)
 m5.instantiate()
 m5.simulate()

@@ -124,9 +124,9 @@ typedef struct GEM5_PACKED
     uint32_t reserved2 : 2;
     uint32_t vmid : 4;
     uint32_t reserved3 : 1;
-    uint32_t me : 1;
-    uint32_t pipe : 2;
     uint32_t queueSlot : 3;
+    uint32_t pipe : 2;
+    uint32_t me : 1;
     uint32_t reserved6 : 2;
     uint32_t queueType : 3;
     uint32_t allocFormat : 2;
@@ -272,6 +272,64 @@ typedef struct GEM5_PACKED
     };
 }  PM4MapProcess;
 static_assert(sizeof(PM4MapProcess) == 60);
+
+typedef struct GEM5_PACKED
+{
+    uint32_t pasid : 16;
+    uint32_t reserved0 : 8;
+    uint32_t diq : 1;
+    uint32_t processQuantum : 7;
+    union
+    {
+        struct
+        {
+            uint32_t ptBaseLo;
+            uint32_t ptBaseHi;
+        };
+        uint64_t ptBase;
+    };
+    uint32_t shMemBases;
+    uint32_t shMemConfig;
+    uint32_t sqShaderTbaLo;
+    uint32_t sqShaderTbaHi;
+    uint32_t sqShaderTmaLo;
+    uint32_t sqShaderTmaHi;
+    uint32_t reserved1;
+    union
+    {
+        struct
+        {
+            uint32_t gdsAddrLo;
+            uint32_t gdsAddrHi;
+        };
+        uint64_t gdsAddr;
+    };
+    union
+    {
+        struct
+        {
+            uint32_t numGws : 7;
+            uint32_t sdma_enable : 1;
+            uint32_t numOac : 4;
+            uint32_t reserved3 : 4;
+            uint32_t gdsSize : 6;
+            uint32_t numQueues : 10;
+        };
+        uint32_t ordinal14;
+    };
+    uint32_t spiGdbgPerVmidCntl;
+    uint32_t tcpWatchCntl[4];
+    union
+    {
+        struct
+        {
+            uint32_t completionSignalLo;
+            uint32_t completionSignalHi;
+        };
+        uint64_t completionSignal;
+    };
+}  PM4MapProcessV2;
+static_assert(sizeof(PM4MapProcessV2) == 80);
 
 typedef struct GEM5_PACKED
 {

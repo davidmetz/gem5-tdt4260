@@ -23,18 +23,18 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.proxy import *
-
 from m5.objects.Device import BasicPioDevice
 from m5.objects.IntPin import IntSourcePin
 from m5.objects.Iris import IrisBaseCPU
+from m5.params import *
+from m5.proxy import *
+
 
 class FastModelResetControllerExample(BasicPioDevice):
-    type = 'FastModelResetControllerExample'
-    cxx_class = 'gem5::fastmodel::ResetControllerExample'
-    cxx_header = 'arch/arm/fastmodel/reset_controller/example.hh'
+    type = "FastModelResetControllerExample"
+    cxx_class = "gem5::fastmodel::ResetControllerExample"
+    cxx_header = "arch/arm/fastmodel/reset_controller/example.hh"
 
-    cpu = Param.IrisBaseCPU('target cpu')
-    reset = IntSourcePin('reset pin')
-    halt = IntSourcePin('halt pin')
+    cpu = Param.IrisBaseCPU("target cpu")
+    reset = IntSourcePin("reset pin")
+    halt = IntSourcePin("halt pin")

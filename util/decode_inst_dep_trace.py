@@ -86,8 +86,9 @@
 # 8,35670,1,STORE,1748748,4,74,0:,6,3:,7
 # 9,35670,1,COMP,500::,7
 
-import protolib
 import sys
+
+import protolib
 
 # Import the packet proto definitions. If they are not found, attempt
 # to generate them automatically. This assumes that the script is
@@ -97,14 +98,23 @@ try:
 except:
     print("Did not find proto definition, attempting to generate")
     from subprocess import call
-    error = call(['protoc', '--python_out=util', '--proto_path=src/proto',
-                  'src/proto/inst_dep_record.proto'])
+
+    error = call(
+        [
+            "protoc",
+            "--python_out=util",
+            "--proto_path=src/proto",
+            "src/proto/inst_dep_record.proto",
+        ]
+    )
     if not error:
         import inst_dep_record_pb2
+
         print("Generated proto definitions for instruction dependency record")
     else:
         print("Failed to import proto definitions")
         exit(-1)
+
 
 def main():
     if len(sys.argv) != 3:
@@ -115,13 +125,13 @@ def main():
     proto_in = protolib.openFileRd(sys.argv[1])
 
     try:
-        ascii_out = open(sys.argv[2], 'w')
-    except IOError:
+        ascii_out = open(sys.argv[2], "w")
+    except OSError:
         print("Failed to open ", sys.argv[2], " for writing")
         exit(-1)
 
     # Read the magic number in 4-byte Little Endian
-    magic_number = proto_in.read(4)
+    magic_number = proto_in.read(4).decode()
 
     if magic_number != "gem5":
         print("Unrecognized file")
@@ -142,7 +152,7 @@ def main():
     enumNames = {}
     desc = inst_dep_record_pb2.InstDepRecord.DESCRIPTOR
     for namestr, valdesc in list(desc.enum_values_by_name.items()):
-        print('\t', valdesc.number, namestr)
+        print("\t", valdesc.number, namestr)
         enumNames[valdesc.number] = namestr
 
     num_packets = 0
@@ -155,52 +165,54 @@ def main():
         num_packets += 1
 
         # Write to file the seq num
-        ascii_out.write('%s' % (packet.seq_num))
+        ascii_out.write(f"{packet.seq_num}")
         # Write to file the pc of the instruction, default is 0
-        if packet.HasField('pc'):
-            ascii_out.write(',%s' % (packet.pc))
+        if packet.HasField("pc"):
+            ascii_out.write(f",{packet.pc}")
         else:
-            ascii_out.write(',0')
+            ascii_out.write(",0")
         # Write to file the weight, default is 1
-        if packet.HasField('weight'):
-            ascii_out.write(',%s' % (packet.weight))
+        if packet.HasField("weight"):
+            ascii_out.write(f",{packet.weight}")
         else:
-            ascii_out.write(',1')
+            ascii_out.write(",1")
         # Write to file the type of the record
         try:
-            ascii_out.write(',%s' % enumNames[packet.type])
+            ascii_out.write(f",{enumNames[packet.type]}")
         except KeyError:
-            print("Seq. num", packet.seq_num, "has unsupported type", \
-                packet.type)
+            print(
+                "Seq. num", packet.seq_num, "has unsupported type", packet.type
+            )
             exit(-1)
-
 
         # Write to file if it has the optional fields physical addr, size,
         # flags
-        if packet.HasField('p_addr'):
-            ascii_out.write(',%s' % (packet.p_addr))
-        if packet.HasField('size'):
-            ascii_out.write(',%s' % (packet.size))
-        if packet.HasField('flags'):
-            ascii_out.write(',%s' % (packet.flags))
+        if packet.HasField("p_addr"):
+            ascii_out.write(f",{packet.p_addr}")
+        if packet.HasField("size"):
+            ascii_out.write(f",{packet.size}")
+        if packet.HasField("flags"):
+            ascii_out.write(f",{packet.flags}")
 
         # Write to file the comp delay
-        ascii_out.write(',%s' % (packet.comp_delay))
+        ascii_out.write(f",{packet.comp_delay}")
 
         # Write to file the repeated field order dependency
-        ascii_out.write(':')
+        ascii_out.write(":")
         if packet.rob_dep:
             num_robdeps += 1
             for dep in packet.rob_dep:
-                ascii_out.write(',%s' % dep)
+                ascii_out.write(f",{dep}")
         # Write to file the repeated field register dependency
-        ascii_out.write(':')
+        ascii_out.write(":")
         if packet.reg_dep:
-            num_regdeps += 1 # No. of packets with atleast 1 register dependency
+            num_regdeps += (
+                1  # No. of packets with atleast 1 register dependency
+            )
             for dep in packet.reg_dep:
-                ascii_out.write(',%s' % dep)
+                ascii_out.write(f",{dep}")
         # New line
-        ascii_out.write('\n')
+        ascii_out.write("\n")
 
     print("Parsed packets:", num_packets)
     print("Packets with at least 1 reg dep:", num_regdeps)
@@ -209,6 +221,7 @@ def main():
     # We're done
     ascii_out.close()
     proto_in.close()
+
 
 if __name__ == "__main__":
     main()

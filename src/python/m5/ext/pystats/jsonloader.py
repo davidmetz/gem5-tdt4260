@@ -24,51 +24,58 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from json.decoder import JSONDecodeError
-from .simstat import SimStat
-from .statistic import Scalar, Distribution, Accumulator, Statistic
-from .group import Group, Vector
 import json
-from typing import IO, Union
+from json.decoder import JSONDecodeError
+from typing import (
+    IO,
+    Union,
+)
+
+from .group import Group
+from .simstat import SimStat
+from .statistic import (
+    Distribution,
+    Scalar,
+    Statistic,
+)
+
 
 class JsonLoader(json.JSONDecoder):
     """
-    Subclass of JSONDecoder that overrides 'object_hook'. Converts JSON object
+    Subclass of JSONDecoder that overrides ``object_hook``. Converts JSON object
     into a SimStat object.
 
     Usage
     -----
-    ```
-    from m5.ext.pystats.jsonloader import JsonLoader
 
-    with open(path) as f:
-        simstat_object = json.load(f, cls=JsonLoader)
-    ```
+    .. code-block::
+
+             from m5.ext.pystats.jsonloader import JsonLoader
+
+             with open(path) as f:
+                     simstat_object = json.load(f, cls=JsonLoader)
+
     """
 
     def __init__(self):
         super().__init__(self, object_hook=self.__json_to_simstat)
 
-    def __json_to_simstat(self, d: dict) -> Union[SimStat,Statistic,Group]:
-        if 'type' in d:
-            if d['type'] == 'Scalar':
-                d.pop('type', None)
+    def __json_to_simstat(self, d: dict) -> Union[SimStat, Statistic, Group]:
+        if "type" in d:
+            if d["type"] == "Scalar":
+                d.pop("type", None)
                 return Scalar(**d)
 
-            elif d['type'] == 'Distribution':
-                d.pop('type', None)
+            elif d["type"] == "Distribution":
+                d.pop("type", None)
                 return Distribution(**d)
 
-            elif d['type'] == 'Accumulator':
-                d.pop('type', None)
-                return Accumulator(**d)
-
-            elif d['type'] == 'Group':
+            elif d["type"] == "Group":
                 return Group(**d)
 
-            elif d['type'] == 'Vector':
-                d.pop('type', None)
-                d.pop('time_conversion', None)
+            elif d["type"] == "Vector":
+                d.pop("type", None)
+                d.pop("time_conversion", None)
                 return Vector(d)
 
             else:
@@ -78,6 +85,7 @@ class JsonLoader(json.JSONDecoder):
         else:
             return SimStat(**d)
 
+
 def load(json_file: IO) -> SimStat:
     """
     Wrapper function that provides a cleaner interface for using the
@@ -85,14 +93,15 @@ def load(json_file: IO) -> SimStat:
 
     Usage
     -----
-    ```
-    import m5.ext.pystats as pystats
 
-    with open(path) as f:
-        pystats.jsonloader.load(f)
-    ```
+    .. code-block::
+
+            import m5.ext.pystats as pystats
+
+            with open(path) as f:
+                pystats.jsonloader.load(f)
+
     """
 
     simstat_object = json.load(json_file, cls=JsonLoader)
     return simstat_object
-

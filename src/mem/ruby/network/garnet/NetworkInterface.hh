@@ -79,6 +79,7 @@ class NetworkInterface : public ClockedObject, public Consumer
     int get_vnet(int vc);
     void init_net_ptr(GarnetNetwork *net_ptr) { m_net_ptr = net_ptr; }
 
+    bool functionalRead(Packet *pkt, WriteMask &mask);
     uint32_t functionalWrite(Packet *);
 
     void scheduleFlit(flit *t_flit);
@@ -305,6 +306,8 @@ class NetworkInterface : public ClockedObject, public Consumer
 
     InputPort *getInportForVnet(int vnet);
     OutputPort *getOutportForVnet(int vnet);
+
+    int MachineType_base_number(const MachineType& obj);
 };
 
 } // namespace garnet

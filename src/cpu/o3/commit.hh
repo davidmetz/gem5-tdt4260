@@ -167,7 +167,7 @@ class Commit
     void setActiveThreads(std::list<ThreadID> *at_ptr);
 
     /** Sets pointer to the commited state rename map. */
-    void setRenameMap(UnifiedRenameMap rm_ptr[MaxThreads]);
+    void setRenameMap(UnifiedRenameMap::PerThreadUnifiedRenameMap& rm_ptr);
 
     /** Sets pointer to the ROB. */
     void setROB(ROB *rob_ptr);
@@ -479,26 +479,10 @@ class Commit
         /** Distribution of the number of committed instructions each cycle. */
         statistics::Distribution numCommittedDist;
 
-        /** Total number of instructions committed. */
-        statistics::Vector instsCommitted;
-        /** Total number of ops (including micro ops) committed. */
-        statistics::Vector opsCommitted;
-        /** Stat for the total number of committed memory references. */
-        statistics::Vector memRefs;
-        /** Stat for the total number of committed loads. */
-        statistics::Vector loads;
         /** Stat for the total number of committed atomics. */
         statistics::Vector amos;
         /** Total number of committed memory barriers. */
         statistics::Vector membars;
-        /** Total number of committed branches. */
-        statistics::Vector branches;
-        /** Total number of vector instructions */
-        statistics::Vector vectorInstructions;
-        /** Total number of floating point instructions */
-        statistics::Vector floating;
-        /** Total number of integer instructions */
-        statistics::Vector integer;
         /** Total number of function calls */
         statistics::Vector functionCalls;
         /** Committed instructions by instruction type (OpClass) */

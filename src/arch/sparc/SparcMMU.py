@@ -35,14 +35,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
-from m5.params import *
 from m5.objects.BaseMMU import BaseMMU
 from m5.objects.SparcTLB import SparcTLB
+from m5.params import *
+from m5.SimObject import SimObject
+
 
 class SparcMMU(BaseMMU):
-    type = 'SparcMMU'
-    cxx_class = 'gem5::SparcISA::MMU'
-    cxx_header = 'arch/sparc/mmu.hh'
+    type = "SparcMMU"
+    cxx_class = "gem5::SparcISA::MMU"
+    cxx_header = "arch/sparc/mmu.hh"
     itb = SparcTLB(entry_type="instruction")
     dtb = SparcTLB(entry_type="data")

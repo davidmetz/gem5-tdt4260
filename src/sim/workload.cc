@@ -28,7 +28,6 @@
 #include "sim/workload.hh"
 
 #include "base/remote_gdb.hh"
-#include "config/the_isa.hh"
 #include "cpu/thread_context.hh"
 #include "sim/debug.hh"
 
@@ -44,10 +43,8 @@ Workload::registerThreadContext(ThreadContext *tc)
     panic_if(!success, "Failed to add thread context %d.",
             tc->contextId());
 
-#   if !IS_NULL_ISA
     if (gdb)
         gdb->addThreadContext(tc);
-#   endif
 }
 
 void
@@ -66,10 +63,8 @@ Workload::replaceThreadContext(ThreadContext *tc)
         panic_if(!success,
                 "Failed to insert replacement thread context %d.", id);
 
-#       if !IS_NULL_ISA
         if (gdb)
             gdb->replaceThreadContext(tc);
-#       endif
 
         return;
     }
@@ -77,31 +72,35 @@ Workload::replaceThreadContext(ThreadContext *tc)
 }
 
 bool
-Workload::trapToGdb(int signal, ContextID ctx_id)
+Workload::trapToGdb(GDBSignal signal, ContextID ctx_id)
 {
-#   if !IS_NULL_ISA
     if (gdb && gdb->isAttached()) {
         gdb->trap(ctx_id, signal);
         return true;
     }
-#   endif
     return false;
 };
+bool
+Workload::sendToGdb(std::string msg){
+     if (gdb)
+        return gdb->sendMessage(msg);
+    else
+        return false;
+ }
+
 
 void
 Workload::startup()
 {
     SimObject::startup();
 
-#   if !IS_NULL_ISA
     // Now that we're about to start simulation, wait for GDB connections if
     // requested.
     if (gdb && waitForRemoteGDB) {
-        inform("%s: Waiting for a remote GDB connection on port %d.", name(),
-                gdb->port());
+        inform("%s: Waiting for a remote GDB connection on %s.", name(),
+                gdb->hostSocket());
         gdb->connect();
     }
-#   endif
 }
 
 } // namespace gem5

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017,2019-2021 ARM Limited
+ * Copyright (c) 2017,2019-2022 ARM Limited
  * All rights reserved.
  *
  * The license below extends only to copyright in the software and shall
@@ -62,8 +62,10 @@ AbstractController::AbstractController(const Params &p)
       m_buffer_size(p.buffer_size), m_recycle_latency(p.recycle_latency),
       m_mandatory_queue_latency(p.mandatory_queue_latency),
       m_waiting_mem_retry(false),
+      m_mem_ctrl_waiting_retry(false),
       memoryPort(csprintf("%s.memory", name()), this),
       addrRanges(p.addr_ranges.begin(), p.addr_ranges.end()),
+      mRetryRespEvent{*this, false},
       stats(this)
 {
     if (m_version == 0) {
@@ -87,6 +89,9 @@ AbstractController::init()
         getMemReqQueue()->setConsumer(this);
     }
 
+    downstreamDestinations.setRubySystem(m_ruby_system);
+    upstreamDestinations.setRubySystem(m_ruby_system);
+
     // Initialize the addr->downstream machine mappings. Multiple machines
     // in downstream_destinations can have the same address range if they have
     // different types. If this is the case, mapAddressToDownstreamMachine
@@ -96,15 +101,13 @@ AbstractController::init()
         MachineID mid = abs_cntrl->getMachineID();
         const AddrRangeList &ranges = abs_cntrl->getAddrRanges();
         for (const auto &addr_range : ranges) {
-            auto i = downstreamAddrMap.intersects(addr_range);
-            if (i == downstreamAddrMap.end()) {
-                i = downstreamAddrMap.insert(addr_range, AddrMapEntry());
+            auto i = downstreamAddrMap.find(mid.getType());
+            if ((i != downstreamAddrMap.end()) &&
+                (i->second.intersects(addr_range) != i->second.end())) {
+                fatal("%s: %s mapped to multiple machines of the same type\n",
+                    name(), addr_range.to_string());
             }
-            AddrMapEntry &entry = i->second;
-            fatal_if(entry.count(mid.getType()) > 0,
-                     "%s: %s mapped to multiple machines of the same type\n",
-                     name(), addr_range.to_string());
-            entry[mid.getType()] = mid;
+            downstreamAddrMap[mid.getType()].insert(addr_range, mid);
         }
         downstreamDestinations.add(mid);
     }
@@ -125,6 +128,7 @@ AbstractController::resetStats()
     for (uint32_t i = 0; i < size; i++) {
         stats.delayVCHistogram[i]->reset();
     }
+    ClockedObject::resetStats();
 }
 
 void
@@ -267,7 +271,7 @@ AbstractController::serviceMemoryQueue()
     }
 
     const MemoryMsg *mem_msg = (const MemoryMsg*)mem_queue->peek();
-    unsigned int req_size = RubySystem::getBlockSizeBytes();
+    unsigned int req_size = m_ruby_system->getBlockSizeBytes();
     if (mem_msg->m_Len > 0) {
         req_size = mem_msg->m_Len;
     }
@@ -293,7 +297,7 @@ AbstractController::serviceMemoryQueue()
     SenderState *s = new SenderState(mem_msg->m_Sender);
     pkt->pushSenderState(s);
 
-    if (RubySystem::getWarmupEnabled()) {
+    if (m_ruby_system->getWarmupEnabled()) {
         // Use functional rather than timing accesses during warmup
         mem_queue->dequeue(clockEdge());
         memoryPort.sendFunctional(pkt);
@@ -369,13 +373,22 @@ AbstractController::functionalMemoryWrite(PacketPtr pkt)
     return num_functional_writes + 1;
 }
 
-void
+bool
 AbstractController::recvTimingResp(PacketPtr pkt)
 {
-    assert(getMemRespQueue());
-    assert(pkt->isResponse());
+    auto* memRspQueue = getMemRespQueue();
+    gem5_assert(memRspQueue);
+    gem5_assert(pkt->isResponse());
 
-    std::shared_ptr<MemoryMsg> msg = std::make_shared<MemoryMsg>(clockEdge());
+    if (!memRspQueue->areNSlotsAvailable(1, curTick())) {
+        m_mem_ctrl_waiting_retry = true;
+        return false;
+    }
+
+    int blk_size = m_ruby_system->getBlockSizeBytes();
+
+    std::shared_ptr<MemoryMsg> msg =
+        std::make_shared<MemoryMsg>(clockEdge(), blk_size, m_ruby_system);
     (*msg).m_addr = pkt->getAddr();
     (*msg).m_Sender = m_machineID;
 
@@ -389,7 +402,7 @@ AbstractController::recvTimingResp(PacketPtr pkt)
 
         // Copy data from the packet
         (*msg).m_DataBlk.setData(pkt->getPtr<uint8_t>(), 0,
-                                 RubySystem::getBlockSizeBytes());
+                                 m_ruby_system->getBlockSizeBytes());
     } else if (pkt->isWrite()) {
         (*msg).m_Type = MemoryRequestType_MEMORY_WB;
         (*msg).m_MessageSize = MessageSizeType_Writeback_Control;
@@ -397,8 +410,10 @@ AbstractController::recvTimingResp(PacketPtr pkt)
         panic("Incorrect packet type received from memory controller!");
     }
 
-    getMemRespQueue()->enqueue(msg, clockEdge(), cyclesToTicks(Cycles(1)));
+    memRspQueue->enqueue(msg, clockEdge(), cyclesToTicks(Cycles(1)),
+        m_ruby_system->getRandomization(), m_ruby_system->getWarmupEnabled());
     delete pkt;
+    return true;
 }
 
 Tick
@@ -419,31 +434,93 @@ MachineID
 AbstractController::mapAddressToDownstreamMachine(Addr addr, MachineType mtype)
 const
 {
-    const auto i = downstreamAddrMap.contains(addr);
-    fatal_if(i == downstreamAddrMap.end(),
-      "%s: couldn't find mapping for address %x\n", name(), addr);
-
-    const AddrMapEntry &entry = i->second;
-    assert(!entry.empty());
-
     if (mtype == MachineType_NUM) {
-        fatal_if(entry.size() > 1,
-          "%s: address %x mapped to multiple machine types.\n", name(), addr);
-        return entry.begin()->second;
-    } else {
-        auto j = entry.find(mtype);
-        fatal_if(j == entry.end(),
-          "%s: couldn't find mapping for address %x\n", name(), addr);
-        return j->second;
+        // map to the first match
+        for (const auto &i : downstreamAddrMap) {
+            const auto mapping = i.second.contains(addr);
+            if (mapping != i.second.end())
+                return mapping->second;
+        }
+    }
+    else {
+        const auto i = downstreamAddrMap.find(mtype);
+        if (i != downstreamAddrMap.end()) {
+            const auto mapping = i->second.contains(addr);
+            if (mapping != i->second.end())
+                return mapping->second;
+        }
+    }
+    fatal("%s: couldn't find mapping for address %x mtype=%s\n",
+        name(), addr, mtype);
+}
+
+
+void
+AbstractController::memRespQueueDequeued() {
+    if (m_mem_ctrl_waiting_retry && !mRetryRespEvent.scheduled()) {
+        schedule(mRetryRespEvent, clockEdge(Cycles{1}));
     }
 }
 
+void
+AbstractController::dequeueMemRespQueue() {
+    auto* q = getMemRespQueue();
+    gem5_assert(q);
+    q->dequeue(clockEdge());
+    memRespQueueDequeued();
+}
+
+void
+AbstractController::sendRetryRespToMem() {
+    if (m_mem_ctrl_waiting_retry) {
+        m_mem_ctrl_waiting_retry = false;
+        memoryPort.sendRetryResp();
+    }
+}
+
+Addr
+AbstractController::getOffset(Addr addr) const
+{
+    return ruby::getOffset(addr, m_ruby_system->getBlockSizeBits());
+}
+
+Addr
+AbstractController::makeLineAddress(Addr addr) const
+{
+    return ruby::makeLineAddress(addr, m_ruby_system->getBlockSizeBits());
+}
+
+std::string
+AbstractController::printAddress(Addr addr) const
+{
+    return ruby::printAddress(addr, m_ruby_system->getBlockSizeBits());
+}
+
+NetDest
+AbstractController::broadcast(MachineType type)
+{
+    assert(m_ruby_system != nullptr);
+    NodeID type_count = m_ruby_system->MachineType_base_count(type);
+
+    NetDest dest(m_ruby_system);
+    for (NodeID i = 0; i < type_count; i++) {
+        MachineID mach = {type, i};
+        dest.add(mach);
+    }
+    return dest;
+}
+
+int
+AbstractController::machineCount(MachineType machType)
+{
+    assert(m_ruby_system != nullptr);
+    return m_ruby_system->MachineType_base_count(machType);
+}
 
 bool
 AbstractController::MemoryPort::recvTimingResp(PacketPtr pkt)
 {
-    controller->recvTimingResp(pkt);
-    return true;
+    return controller->recvTimingResp(pkt);
 }
 
 void
@@ -456,7 +533,7 @@ AbstractController::MemoryPort::recvReqRetry()
 AbstractController::MemoryPort::MemoryPort(const std::string &_name,
                                            AbstractController *_controller,
                                            PortID id)
-    : RequestPort(_name, _controller, id), controller(_controller)
+    : RequestPort(_name, id), controller(_controller)
 {
 }
 

@@ -44,7 +44,6 @@
 #include <queue>
 #include <thread>
 
-#include "base/random.hh"
 #include "base/trace.hh"
 #include "cpu/thread_context.hh"
 #include "debug/DistEthernet.hh"
@@ -806,7 +805,7 @@ DistIface::init(const Event *done_event, Tick link_delay)
     // in all gem5 peer processes
     assert(primary != nullptr);
     if (this == primary)
-        random_mt.init(5489 * (rank+1) + 257);
+        rng->init(5489 * (rank+1) + 257);
 }
 
 void
@@ -868,12 +867,10 @@ DistIface::toggleSync(ThreadContext *tc)
         // stop point.  Suspend execution of all local thread contexts.
         // Dist-gem5 will reactivate all thread contexts when everyone has
         // reached the sync stop point.
-#if !IS_NULL_ISA
         for (auto *tc: primary->sys->threads) {
             if (tc->status() == ThreadContext::Active)
                 tc->quiesce();
         }
-#endif
     } else {
         inform("Request toggling syncronization on\n");
         primary->syncEvent->start();
@@ -882,12 +879,10 @@ DistIface::toggleSync(ThreadContext *tc)
         // nodes to prevent causality errors.  We can also schedule CPU
         // activation here, since we know exactly when the next sync will
         // occur.
-#if !IS_NULL_ISA
         for (auto *tc: primary->sys->threads) {
             if (tc->status() == ThreadContext::Active)
                 tc->quiesceTick(primary->syncEvent->when() + 1);
         }
-#endif
     }
 }
 

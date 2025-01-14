@@ -34,6 +34,7 @@
 #include "arch/riscv/utility.hh"
 #include "kern/linux/flag_tables.hh"
 #include "kern/linux/linux.hh"
+#include "base/bitfield.hh"
 
 namespace gem5
 {
@@ -42,6 +43,101 @@ class RiscvLinux : public Linux
 {
   public:
     static const ByteOrder byteOrder = ByteOrder::little;
+
+    enum RiscvHwprobeKey
+    {
+        Mvendorid,
+        Marchid,
+        Mimpid,
+        BaseBehavior,
+        IMAExt0,
+        Cpuperf0,
+        ZicbozBlockSize,
+        HighestVirtAddress,
+        TimeCsrFreq,
+        MisalignedScalarPerf
+    };
+
+    /* Increase RISCV_HWPROBE_MAX_KEY when adding items. */
+    #define RISCV_HWPROBE_MAX_KEY 9
+
+    BitUnion64(key_base_behavior_t)
+    Bitfield<0> ima;
+    EndBitUnion(key_base_behavior_t)
+
+    BitUnion64(key_ima_ext_0_t)
+        Bitfield<49> ZAWRS;
+        Bitfield<48> ZCMOP;
+        Bitfield<47> ZCF;
+        Bitfield<46> ZCD;
+        Bitfield<45> ZCB;
+        Bitfield<44> ZCA;
+        Bitfield<43> ZIMOP;
+        Bitfield<42> ZVE64D;
+        Bitfield<41> ZVE64F;
+        Bitfield<40> ZVE64X;
+        Bitfield<39> ZVE32F;
+        Bitfield<38> ZVE32X;
+        Bitfield<37> ZIHINTPAUSE;
+        Bitfield<36> ZICOND;
+        Bitfield<35> ZACAS;
+        Bitfield<34> ZTSO;
+        Bitfield<33> ZFA;
+        Bitfield<32> ZVFHMIN;
+        Bitfield<31> ZVFH;
+        Bitfield<30> ZIHINTNTL;
+        Bitfield<29> ZFHMIN;
+        Bitfield<28> ZFH;
+        Bitfield<27> ZVKT;
+        Bitfield<26> ZVKSH;
+        Bitfield<25> ZVKSED;
+        Bitfield<24> ZVKNHB;
+        Bitfield<22> ZVKNHA;
+        Bitfield<21> ZVKNED;
+        Bitfield<20> ZVKG;
+        Bitfield<19> ZVKB;
+        Bitfield<18> ZVBC;
+        Bitfield<17> ZVBB;
+        Bitfield<16> ZKT;
+        Bitfield<15> ZKSH;
+        Bitfield<14> ZKSED;
+        Bitfield<13> ZKNH;
+        Bitfield<12> ZKNE;
+        Bitfield<11> ZKND;
+        Bitfield<10> ZBKX;
+        Bitfield<9>  ZBKC;
+        Bitfield<8>  ZBKB;
+        Bitfield<7>  ZBC;
+        Bitfield<6>  ZICBOZ;
+        Bitfield<5>  ZBS;
+        Bitfield<4>  ZBB;
+        Bitfield<3>  ZBA;
+        Bitfield<2>  V;
+        Bitfield<1>  C;
+        Bitfield<0>  FD;
+    EndBitUnion(key_ima_ext_0_t)
+
+    enum MisalignedScalarPerf
+    {
+        Unknown,
+        Emulated,
+        Slow,
+        Fast,
+        Unsupported
+    };
+
+    /* Flags */
+    #define RISCV_HWPROBE_WHICH_CPUS	(1 << 0)
+
+    struct riscv_hwprobe {
+        int64_t  key;
+        uint64_t value;
+    };
+
+    typedef struct cpumask {
+        size_t size;
+        uint64_t bits[];
+    } cpumask_t;
 };
 
 class RiscvLinux64 : public RiscvLinux, public OpenFlagTable<RiscvLinux64>
@@ -94,20 +190,20 @@ class RiscvLinux64 : public RiscvLinux, public OpenFlagTable<RiscvLinux64>
     static constexpr int TGT_O_TRUNC        = 0x000200; //!< O_TRUNC
     static constexpr int TGT_O_APPEND       = 0x000400; //!< O_APPEND
     static constexpr int TGT_O_NONBLOCK     = 0x000800; //!< O_NONBLOCK
-    static constexpr int TGT_O_SYNC         = 0x001000; //!< O_SYNC
+    static constexpr int TGT_O_SYNC         = 0x101000; //!< O_SYNC
     static constexpr int TGT_FSYNC          = 0x001000; //!< FSYNC
-    static constexpr int TGT_FASYNC         = 0x008000; //!< FASYNC
+    static constexpr int TGT_FASYNC         = 0x002000; //!< FASYNC
     // The following are not present in riscv64-unknown-elf <fcntl.h>
-    static constexpr int TGT_O_DSYNC        = 0x010000; //!< O_DSYNC
-    static constexpr int TGT_O_CLOEXEC      = 0x040000; //!< O_CLOEXEC
+    static constexpr int TGT_O_DSYNC        = 0x001000; //!< O_DSYNC
+    static constexpr int TGT_O_CLOEXEC      = 0x080000; //!< O_CLOEXEC
     static constexpr int TGT_O_NOINHERIT    = 0x040000; //!< O_NOINHERIT
-    static constexpr int TGT_O_DIRECT       = 0x080000; //!< O_DIRECT
-    static constexpr int TGT_O_NOFOLLOW     = 0x100000; //!< O_NOFOLLOW
-    static constexpr int TGT_O_DIRECTORY    = 0x200000; //!< O_DIRECTORY
+    static constexpr int TGT_O_DIRECT       = 0x004000; //!< O_DIRECT
+    static constexpr int TGT_O_NOFOLLOW     = 0x020000; //!< O_NOFOLLOW
+    static constexpr int TGT_O_DIRECTORY    = 0x010000; //!< O_DIRECTORY
     // The following are not defined by riscv64-unknown-elf
-    static constexpr int TGT_O_LARGEFILE    = 0x020000; //!< O_LARGEFILE
-    static constexpr int TGT_O_NOATIME      = 0x800000; //!< O_NOATIME
-    static constexpr int TGT_O_PATH         = 0x400000; //!< O_PATH
+    static constexpr int TGT_O_LARGEFILE    = 0x000000; //!< O_LARGEFILE
+    static constexpr int TGT_O_NOATIME      = 0x040000; //!< O_NOATIME
+    static constexpr int TGT_O_PATH         = 0x200000; //!< O_PATH
     //@}
 
     // Only defined in riscv-unknown-elf for proxy kernel and not linux kernel
@@ -195,6 +291,21 @@ class RiscvLinux64 : public RiscvLinux, public OpenFlagTable<RiscvLinux64>
         uint32_t mem_unit;
     };
 
+    struct tgt_clone_args
+    {
+        uint64_t flags;
+        uint64_t pidfd;
+        uint64_t child_tid;
+        uint64_t parent_tid;
+        uint64_t exit_signal;
+        uint64_t stack;
+        uint64_t stack_size;
+        uint64_t tls;
+        uint64_t set_tid;
+        uint64_t set_tid_size;
+        uint64_t cgroup;
+    };
+
     static void
     archClone(uint64_t flags,
               Process *pp, Process *cp,
@@ -203,9 +314,9 @@ class RiscvLinux64 : public RiscvLinux, public OpenFlagTable<RiscvLinux64>
     {
         ctc->getIsaPtr()->copyRegsFrom(ptc);
         if (flags & TGT_CLONE_SETTLS)
-            ctc->setIntReg(RiscvISA::ThreadPointerReg, tls);
+            ctc->setReg(RiscvISA::ThreadPointerReg, tls);
         if (stack)
-            ctc->setIntReg(RiscvISA::StackPointerReg, stack);
+            ctc->setReg(RiscvISA::StackPointerReg, stack);
     }
 };
 
@@ -289,6 +400,10 @@ class RiscvLinux32 : public RiscvLinux, public OpenFlagTable<RiscvLinux32>
     // Currently time_t in glibc for riscv32 is 32-bits, but will be changed.
     typedef int64_t time_t;
 
+    // Linux types for RV32
+    typedef uint32_t size_t;
+    typedef int64_t off_t;
+
     /// Limit struct for getrlimit/setrlimit.
     struct rlimit
     {
@@ -371,8 +486,10 @@ class RiscvLinux32 : public RiscvLinux, public OpenFlagTable<RiscvLinux32>
               uint64_t stack, uint64_t tls)
     {
         ctc->getIsaPtr()->copyRegsFrom(ptc);
+        if (flags & TGT_CLONE_SETTLS)
+            ctc->setReg(RiscvISA::ThreadPointerReg, sext<32>(tls));
         if (stack)
-            ctc->setIntReg(RiscvISA::StackPointerReg, stack);
+            ctc->setReg(RiscvISA::StackPointerReg, sext<32>(stack));
     }
 };
 

@@ -36,12 +36,13 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import sys
 import os
 import os.path
+import sys
 from os.path import join as joinpath
 
 import m5
+
 
 def run_test(root):
     """Default run_test implementations. Scripts can override it."""
@@ -51,26 +52,27 @@ def run_test(root):
 
     # simulate until program terminates
     exit_event = m5.simulate()
-    print('Exiting @ tick', m5.curTick(), 'because', exit_event.getCause())
+    print("Exiting @ tick", m5.curTick(), "because", exit_event.getCause())
+
 
 config = sys.argv[1]
-os.environ['M5_PATH'] = sys.argv[2]
+os.environ["M5_PATH"] = sys.argv[2]
 gem5_root = sys.argv[3]
 
 # path setup
-sys.path.append(joinpath(gem5_root, 'configs'))
-tests_root = joinpath(gem5_root, 'tests')
-sys.path.append(joinpath(tests_root, 'gem5', 'configs'))
+sys.path.append(joinpath(gem5_root, "configs"))
+tests_root = joinpath(gem5_root, "tests")
+sys.path.append(joinpath(tests_root, "gem5", "fs", "linux", "arm", "configs"))
 
 
-exec(compile(open(config).read(), config, 'exec'))
+exec(compile(open(config).read(), config, "exec"))
 
 system = root.system
-system.readfile = os.path.join(gem5_root, 'configs', 'boot', 'halt.sh')
+system.readfile = os.path.join(gem5_root, "configs", "boot", "halt.sh")
 
 # The CPU can either be a list of CPUs or a single object.
 if isinstance(system.cpu, list):
-    [ cpu.createThreads() for cpu in system.cpu ]
+    [cpu.createThreads() for cpu in system.cpu]
 else:
     system.cpu.createThreads()
 

@@ -1,6 +1,6 @@
-from m5.SimObject import SimObject
 from m5.params import Param
 from m5.proxy import Parent
+from m5.SimObject import SimObject
 
 
 class SharedMemoryServer(SimObject):
@@ -10,6 +10,8 @@ class SharedMemoryServer(SimObject):
 
     system = Param.System(
         Parent.any,
-        "The system where the target shared memory is actually stored.")
+        "The system where the target shared memory is actually stored.",
+    )
     server_path = Param.String(
-        "The unix socket path where the server should be running upon.")
+        "The unix socket path where the server should be running upon."
+    )

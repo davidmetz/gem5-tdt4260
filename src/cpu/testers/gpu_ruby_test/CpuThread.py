@@ -27,12 +27,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.TesterThread import TesterThread
 from m5.params import *
 from m5.proxy import *
 
-from m5.objects.TesterThread import TesterThread
 
 class CpuThread(TesterThread):
-    type = 'CpuThread'
+    type = "CpuThread"
     cxx_header = "cpu/testers/gpu_ruby_test/cpu_thread.hh"
-    cxx_class = 'gem5::CpuThread'
+    cxx_class = "gem5::CpuThread"

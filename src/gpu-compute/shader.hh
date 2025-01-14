@@ -88,11 +88,26 @@ class Shader : public ClockedObject
     ApertureRegister _scratchApe;
     Addr shHiddenPrivateBaseVmid;
 
+    // Hardware regs accessed by getreg/setreg instructions, set by queues
+    std::unordered_map<int, uint32_t> hwRegs;
+
     // Number of active Cus attached to this shader
     int _activeCus;
 
     // Last tick that all CUs attached to this shader were inactive
     Tick _lastInactiveTick;
+
+    // If a kernel-based exit event was requested, wait for all CUs in the
+    // shader to complete before actually exiting so that stats are updated.
+    bool kernelExitRequested = false;
+
+    // Set to true by the dispatcher if the current kernel is a blit kernel
+    bool blitKernel = false;
+
+    // Number of pending non-instruction invalidates outstanding. The shader
+    // should wait for these to be done to ensure correctness.
+    int num_outstanding_invl2s = 0;
+    std::vector<std::tuple<void *, uint32_t, Addr>> deferred_dispatches;
 
   public:
     typedef ShaderParams Params;
@@ -109,6 +124,18 @@ class Shader : public ClockedObject
     ThreadContext *gpuTc;
     BaseCPU *cpuPointer;
 
+    void
+    setHwReg(int regIdx, uint32_t val)
+    {
+        hwRegs[regIdx] = val;
+    }
+
+    uint32_t
+    getHwReg(int regIdx)
+    {
+        return hwRegs[regIdx];
+    }
+
     const ApertureRegister&
     gpuVmApe() const
     {
@@ -121,10 +148,24 @@ class Shader : public ClockedObject
         return _ldsApe;
     }
 
+    void
+    setLdsApe(Addr base, Addr limit)
+    {
+        _ldsApe.base = base;
+        _ldsApe.limit = limit;
+    }
+
     const ApertureRegister&
     scratchApe() const
     {
         return _scratchApe;
+    }
+
+    void
+    setScratchApe(Addr base, Addr limit)
+    {
+        _scratchApe.base = base;
+        _scratchApe.limit = limit;
     }
 
     bool
@@ -204,6 +245,8 @@ class Shader : public ClockedObject
     int n_cu;
     // Number of wavefront slots per SIMD per CU
     int n_wf;
+    //Number of cu units per sqc in the shader
+    int n_cu_per_sqc;
 
     // The size of global memory
     int globalMemSize;
@@ -284,6 +327,20 @@ class Shader : public ClockedObject
     {
         stats.vectorInstDstOperand[num_operands]++;
     }
+
+    void
+    requestKernelExitEvent(bool is_blit_kernel)
+    {
+        kernelExitRequested = true;
+        blitKernel = is_blit_kernel;
+    }
+
+    void decNumOutstandingInvL2s();
+    void incNumOutstandingInvL2s() { num_outstanding_invl2s++; };
+    int getNumOutstandingInvL2s() const { return num_outstanding_invl2s; };
+
+    void addDeferredDispatch(void *raw_pkt, uint32_t queue_id,
+                             Addr host_pkt_addr);
 
   protected:
     struct ShaderStats : public statistics::Group

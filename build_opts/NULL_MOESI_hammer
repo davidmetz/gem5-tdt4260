@@ -1,2 +1,3 @@
-TARGET_ISA = 'null'
-PROTOCOL='MOESI_hammer'
+RUBY=y
+PROTOCOL="MOESI_hammer"
+RUBY_PROTOCOL_MOESI_hammer=y

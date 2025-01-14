@@ -33,15 +33,16 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.ArmCPU import ArmCPU
 from m5.objects.ArmMMU import ArmMMU
 from m5.objects.BaseKvmCPU import BaseKvmCPU
+from m5.params import *
+
 
 class BaseArmKvmCPU(BaseKvmCPU, ArmCPU):
-    type = 'BaseArmKvmCPU'
+    type = "BaseArmKvmCPU"
     cxx_header = "arch/arm/kvm/base_cpu.hh"
-    cxx_class = 'gem5::BaseArmKvmCPU'
+    cxx_class = "gem5::BaseArmKvmCPU"
     abstract = True
 
     mmu = ArmMMU()

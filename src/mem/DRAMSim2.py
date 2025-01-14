@@ -33,23 +33,48 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
+from citations import add_citation
+
 from m5.objects.AbstractMemory import *
+from m5.params import *
+
 
 # A wrapper for DRAMSim2 multi-channel memory controller
 class DRAMSim2(AbstractMemory):
-    type = 'DRAMSim2'
+    type = "DRAMSim2"
     cxx_header = "mem/dramsim2.hh"
-    cxx_class = 'gem5::memory::DRAMSim2'
+    cxx_class = "gem5::memory::DRAMSim2"
 
     # A single port for now
     port = ResponsePort("This port sends responses and receives requests")
 
-    deviceConfigFile = Param.String("ini/DDR3_micron_32M_8B_x8_sg15.ini",
-                                    "Device configuration file")
-    systemConfigFile = Param.String("system.ini.example",
-                                    "Memory organisation configuration file")
-    filePath = Param.String("ext/dramsim2/DRAMSim2/",
-                            "Directory to prepend to file names")
+    deviceConfigFile = Param.String(
+        "ini/DDR3_micron_32M_8B_x8_sg15.ini", "Device configuration file"
+    )
+    systemConfigFile = Param.String(
+        "system.ini.example", "Memory organisation configuration file"
+    )
+    filePath = Param.String(
+        "ext/dramsim2/DRAMSim2/", "Directory to prepend to file names"
+    )
     traceFile = Param.String("", "Output file for trace generation")
     enableDebug = Param.Bool(False, "Enable DRAMSim2 debug output")
+
+
+add_citation(
+    DRAMSim2,
+    """@article{Rosenfeld:2011:dramsim2,
+  author       = {Paul Rosenfeld and
+                  Elliott Cooper{-}Balis and
+                  Bruce L. Jacob},
+  title        = {DRAMSim2: {A} Cycle Accurate Memory System Simulator},
+  journal      = {{IEEE} Compututer Architecture Letters},
+  volume       = {10},
+  number       = {1},
+  pages        = {16--19},
+  year         = {2011},
+  url          = {https://doi.org/10.1109/L-CA.2011.4},
+  doi          = {10.1109/L-CA.2011.4}
+}
+""",
+)

@@ -24,13 +24,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
-from m5.params import *
 from m5.objects.CPUTracers import NativeTrace
+from m5.params import *
+from m5.SimObject import SimObject
+
 
 class ArmNativeTrace(NativeTrace):
-    type = 'ArmNativeTrace'
-    cxx_class = 'gem5::Trace::ArmNativeTrace'
+    type = "ArmNativeTrace"
+    cxx_class = "gem5::trace::ArmNativeTrace"
     cxx_header = "arch/arm/nativetrace.hh"
-    stop_on_pc_error = Param.Bool(True,
-            "Stop M5 if it and statetrace's pcs are different")
+    stop_on_pc_error = Param.Bool(
+        True, "Stop M5 if it and statetrace's pcs are different"
+    )

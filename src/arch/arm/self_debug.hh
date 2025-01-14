@@ -40,7 +40,6 @@
 #define __ARCH_ARM_SELF_DEBUG_HH__
 
 
-#include "arch/arm/faults.hh"
 #include "arch/arm/regs/misc.hh"
 #include "arch/arm/system.hh"
 #include "arch/arm/types.hh"
@@ -239,50 +238,13 @@ class SoftwareStep
     }
 };
 
-class VectorCatch
-{
-  private:
-    bool vcmatch;
-    SelfDebug *conf;
-    std::vector<Fault *> vectorTypes();
-
-  public:
-    VectorCatch(bool _vcmatch, SelfDebug* s) : vcmatch(_vcmatch), conf(s)
-    {}
-
-    bool addressMatching(ThreadContext *tc, Addr addr, ExceptionLevel el);
-    bool exceptionTrapping(ThreadContext *tc, ExceptionLevel el,
-                           ArmFault* fault);
-
-    bool isVCMatch() const { return vcmatch; }
-
-  private:
-    Addr
-    getVectorBase(ThreadContext *tc, bool monitor)
-    {
-        if (monitor) {
-            return tc->readMiscReg(MISCREG_MVBAR) & ~0x1F;
-        }
-        SCTLR sctlr = tc->readMiscReg(MISCREG_SCTLR_EL1);
-        if (sctlr.v) {
-            return (Addr) 0xFFFF0000;
-        } else {
-            Addr vbar = tc->readMiscReg(MISCREG_VBAR) & ~0x1F;
-            return vbar;
-        }
-    }
-
-};
-
 class SelfDebug
 {
   private:
     std::vector<BrkPoint> arBrkPoints;
     std::vector<WatchPoint> arWatchPoints;
     SoftwareStep * softStep;
-    VectorCatch * vcExcpt;
 
-    bool initialized;
     bool enableTdeTge; // MDCR_EL2.TDE || HCR_EL2.TGE
 
     bool mde; // MDSCR_EL1.MDE, DBGDSCRext.MDBGen
@@ -295,7 +257,7 @@ class SelfDebug
 
   public:
     SelfDebug()
-      : initialized(false), enableTdeTge(false),
+      : softStep(nullptr), enableTdeTge(false),
         mde(false), sdd(false), kde(false), oslk(false)
     {
         softStep = new SoftwareStep(this);
@@ -304,7 +266,6 @@ class SelfDebug
     ~SelfDebug()
     {
         delete softStep;
-        delete vcExcpt;
     }
 
     Fault testDebug(ThreadContext *tc, const RequestPtr &req,
@@ -319,8 +280,6 @@ class SelfDebug
     Fault triggerWatchpointException(ThreadContext *tc, Addr vaddr,
                                      bool write, bool cm);
   public:
-    Fault testVectorCatch(ThreadContext *tc, Addr addr, ArmFault* flt);
-
     bool enabled() const { return mde || softStep->bSS; };
 
     inline BrkPoint*
@@ -444,14 +403,6 @@ class SelfDebug
     getSstep()
     {
         return softStep;
-    }
-
-    VectorCatch*
-    getVectorCatch(ThreadContext *tc)
-    {
-        if (!initialized)
-            init(tc);
-        return vcExcpt;
     }
 
     bool

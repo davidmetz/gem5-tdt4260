@@ -49,6 +49,7 @@
 #ifndef __ARCH_ARM_TRACERS_TARMAC_BASE_HH__
 #define __ARCH_ARM_TRACERS_TARMAC_BASE_HH__
 
+#include "arch/arm/types.hh"
 #include "base/trace.hh"
 #include "base/types.hh"
 #include "cpu/static_inst.hh"
@@ -59,7 +60,7 @@ namespace gem5
 
 class ThreadContext;
 
-namespace Trace {
+namespace trace {
 
 class TarmacBaseRecord : public InstRecord
 {
@@ -92,7 +93,6 @@ class TarmacBaseRecord : public InstRecord
         bool taken;
         Addr addr;
         ArmISA::MachInst opcode;
-        std::string disassemble;
         ISetState isetstate;
         ArmISA::OperatingMode mode;
     };
@@ -146,7 +146,7 @@ class TarmacBaseRecord : public InstRecord
 };
 
 
-} // namespace Trace
+} // namespace trace
 } // namespace gem5
 
 #endif // __ARCH_ARM_TRACERS_TARMAC_BASE_HH__

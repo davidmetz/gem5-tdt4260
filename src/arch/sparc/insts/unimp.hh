@@ -59,10 +59,12 @@ class FailUnimplemented : public SparcStaticInst
     /// Constructor
     FailUnimplemented(const char *_mnemonic, ExtMachInst _machInst) :
             SparcStaticInst(_mnemonic, _machInst, No_OpClass)
-    {}
+    {
+        flags[IsInvalid] = true;
+    }
 
     Fault
-    execute(ExecContext *xc, Trace::InstRecord *traceData) const override
+    execute(ExecContext *xc, trace::InstRecord *traceData) const override
     {
         return std::make_shared<GenericISA::M5PanicFault>(
             "attempt to execute unimplemented instruction '%s' (inst %#08x)",
@@ -99,7 +101,7 @@ class WarnUnimplemented : public SparcStaticInst
     {}
 
     Fault
-    execute(ExecContext *xc, Trace::InstRecord *traceData) const override
+    execute(ExecContext *xc, trace::InstRecord *traceData) const override
     {
         if (!warned) {
             return std::make_shared<GenericISA::M5WarnFault>(

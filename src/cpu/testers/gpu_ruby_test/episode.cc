@@ -100,7 +100,7 @@ Episode::initActions()
     int num_loads = numLoads;
     int num_stores = numStores;
     while ((num_loads + num_stores) > 0) {
-        switch (random() % 2) {
+        switch (rng->random<unsigned int>() % 2) {
             case 0: // Load
                 if (num_loads > 0) {
                     actions.push_back(new Action(Action::Type::LOAD,

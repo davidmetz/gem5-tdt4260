@@ -158,24 +158,7 @@ GpuTLB::insert(Addr vpn, VegaTlbEntry &entry)
 {
     VegaTlbEntry *newEntry = nullptr;
 
-    /**
-     * vpn holds the virtual page address assuming native page size.
-     * However, we need to check the entry size as Vega supports
-     * flexible page sizes of arbitrary size. The set will assume
-     * native page size but the vpn needs to be fixed up to consider
-     * the flexible page size.
-     */
-    Addr real_vpn = vpn & ~(entry.size() - 1);
-
-    /**
-     * Also fix up the ppn as this is used in the math later to compute paddr.
-     */
-    Addr real_ppn = entry.paddr & ~(entry.size() - 1);
-
-    int set = (real_vpn >> VegaISA::PageShift) & setMask;
-
-    DPRINTF(GPUTLB, "Inserted %#lx -> %#lx of size %#lx into set %d\n",
-            real_vpn, real_ppn, entry.size(), set);
+    int set = (entry.vaddr >> VegaISA::PageShift) & setMask;
 
     if (!freeList[set].empty()) {
         newEntry = freeList[set].front();
@@ -186,9 +169,10 @@ GpuTLB::insert(Addr vpn, VegaTlbEntry &entry)
     }
 
     *newEntry = entry;
-    newEntry->vaddr = real_vpn;
-    newEntry->paddr = real_ppn;
     entryList[set].push_front(newEntry);
+
+    DPRINTF(GPUTLB, "Inserted %#lx -> %#lx of size %#lx into set %d\n",
+            newEntry->vaddr, newEntry->paddr, entry.size(), set);
 
     return newEntry;
 }
@@ -275,6 +259,9 @@ GpuTLB::demapPage(Addr va, uint64_t asn)
 VegaTlbEntry *
 GpuTLB::tlbLookup(const RequestPtr &req, bool update_stats)
 {
+    if (req->hasNoAddr()) {
+        return NULL;
+    }
     Addr vaddr = req->getVaddr();
     Addr alignedVaddr = pageAlign(vaddr);
     DPRINTF(GPUTLB, "TLB Lookup for vaddr %#x.\n", vaddr);
@@ -358,20 +345,27 @@ GpuTLB::issueTLBLookup(PacketPtr pkt)
 
     // Access the TLB and figure out if it's a hit or a miss.
     auto entry = tlbLookup(tmp_req, update_stats);
-
-    if (entry) {
-        lookup_outcome = TLB_HIT;
+    if (entry || pkt->req->hasNoAddr()) {
         // Put the entry in SenderState
-        VegaTlbEntry *entry = lookup(virt_page_addr, false);
-        assert(entry);
+        lookup_outcome = TLB_HIT;
+        if (pkt->req->hasNoAddr()) {
+            sender_state->tlbEntry =
+                new VegaTlbEntry(1 /* VMID */, 0, 0, 0, 0);
+            // set false because we shouldn't go to
+            // host memory for a memtime request
+            pkt->req->setSystemReq(false);
+        } else {
+            VegaTlbEntry *entry = lookup(virt_page_addr, false);
+            assert(entry);
 
-        // Set if this is a system request
-        pkt->req->setSystemReq(entry->pte.s);
+            // Set if this is a system request
+            pkt->req->setSystemReq(entry->pte.s);
 
-        Addr alignedPaddr = pageAlign(entry->paddr);
-        sender_state->tlbEntry =
-            new VegaTlbEntry(1 /* VMID */, virt_page_addr, alignedPaddr,
-                            entry->logBytes, entry->pte);
+            Addr alignedPaddr = pageAlign(entry->paddr);
+            sender_state->tlbEntry =
+                new VegaTlbEntry(1 /* VMID */, virt_page_addr, alignedPaddr,
+                                 entry->logBytes, entry->pte);
+        }
 
         if (update_stats) {
             // the reqCnt has an entry per level, so its size tells us
@@ -447,7 +441,7 @@ GpuTLB::walkerResponse(VegaTlbEntry& entry, PacketPtr pkt)
                                     VegaISA::PageBytes);
 
     Addr page_addr = entry.pte.ppn << VegaISA::PageShift;
-    Addr paddr = insertBits(page_addr, entry.logBytes - 1, 0, entry.vaddr);
+    Addr paddr = page_addr + (entry.vaddr & mask(entry.logBytes));
     pkt->req->setPaddr(paddr);
     pkt->req->setSystemReq(entry.pte.s);
 
@@ -524,7 +518,7 @@ GpuTLB::handleTranslationReturn(Addr virt_page_addr,
 
     pagingProtectionChecks(pkt, local_entry, mode);
     int page_size = local_entry->size();
-    Addr paddr = local_entry->paddr | (vaddr & (page_size - 1));
+    Addr paddr = local_entry->paddr + (vaddr & (page_size - 1));
     DPRINTF(GPUTLB, "Translated %#x -> %#x.\n", vaddr, paddr);
 
     // Since this packet will be sent through the cpu side port, it must be
@@ -767,7 +761,7 @@ GpuTLB::handleFuncTranslationReturn(PacketPtr pkt, tlbOutcome tlb_outcome)
         pagingProtectionChecks(pkt, local_entry, mode);
 
     int page_size = local_entry->size();
-    Addr paddr = local_entry->paddr | (vaddr & (page_size - 1));
+    Addr paddr = local_entry->paddr + (vaddr & (page_size - 1));
     DPRINTF(GPUTLB, "Translated %#x -> %#x.\n", vaddr, paddr);
 
     pkt->req->setPaddr(paddr);
@@ -842,7 +836,7 @@ GpuTLB::CpuSidePort::recvFunctional(PacketPtr pkt)
             // page size. Fragment is still used via logBytes to select lower
             // bits from vaddr.
             Addr page_addr = pte.ppn << PageShift;
-            Addr paddr = insertBits(page_addr, logBytes - 1, 0, vaddr);
+            Addr paddr = page_addr + (vaddr & mask(logBytes));
             Addr alignedPaddr = tlb->pageAlign(paddr);
             pkt->req->setPaddr(paddr);
             pkt->req->setSystemReq(pte.s);

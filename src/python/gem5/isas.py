@@ -32,6 +32,7 @@ import os
 from enum import Enum
 from typing import Set
 
+
 class ISA(Enum):
     """
     The ISA Enums which may be used in the gem5 stdlib to specify ISAs.
@@ -41,11 +42,13 @@ class ISA(Enum):
 
     E.g., to check if the X86 ISA is compiled:
 
-    ```
-    if buildEnv[f"USE_{ISA.X86.value}_ISA"]:
+    .. code-block::
+
+            if buildEnv[f"USE_{ISA.X86.value}_ISA"]:
         ...
-    ```
+
     """
+
     X86 = "x86"
     RISCV = "riscv"
     ARM = "arm"
@@ -54,11 +57,13 @@ class ISA(Enum):
     SPARC = "sparc"
     NULL = "null"
 
-def get_isas_str_set() -> Set[ISA]:
+
+def get_isas_str_set() -> Set[str]:
     """
     Returns a set of all the ISA as strings.
     """
     return {isa.value for isa in ISA}
+
 
 def get_isa_from_str(input: str) -> ISA:
     """
@@ -66,7 +71,7 @@ def get_isa_from_str(input: str) -> ISA:
     the enum's value. E.g., "x86" will return ISA.X86. Throws an exception if
     the input string is invalid.
 
-    `get_isas_str_set()` can be used to determine the valid strings.
+    ``get_isas_str_set()`` can be used to determine the valid strings.
 
     This is for parsing text inputs that specify ISA targets.
 
@@ -76,8 +81,8 @@ def get_isa_from_str(input: str) -> ISA:
         if input.lower() == isa.value:
             return isa
 
-    valid_isas_str_list =str()
-    for isa_str in get_isa_from_str():
+    valid_isas_str_list = ""
+    for isa_str in get_isas_str_set():
         valid_isas_str_list += f"{os.linesep}{isa_str}"
 
     raise Exception(

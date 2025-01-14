@@ -1,4 +1,16 @@
 /*
+ * Copyright (c) 2022-2023 The University of Edinburgh
+ * All rights reserved
+ *
+ * The license below extends only to copyright in the software and shall
+ * not be construed as granting a license to any other intellectual
+ * property including but not limited to intellectual property relating
+ * to a hardware implementation of the functionality of the software
+ * licensed hereunder.  You may use the software subject to the license
+ * terms below provided that you ensure that this notice is replicated
+ * unmodified and in its entirety in all distributions of the software,
+ * modified or unmodified, in source code or in binary form.
+ *
  * Copyright 2019 Texas A&M University
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,6 +51,7 @@
 #ifndef __CPU_PRED_MULTIPERSPECTIVE_PERCEPTRON_TAGE_HH__
 #define __CPU_PRED_MULTIPERSPECTIVE_PERCEPTRON_TAGE_HH__
 
+#include "base/random.hh"
 #include "cpu/pred/loop_predictor.hh"
 #include "cpu/pred/multiperspective_perceptron.hh"
 #include "cpu/pred/statistical_corrector.hh"
@@ -57,6 +70,9 @@ namespace branch_prediction
 class MPP_TAGE : public TAGEBase
 {
     std::vector<unsigned int> tunedHistoryLengths;
+
+    Random::RandomPtr rng = Random::genRandom();
+
   public:
     struct BranchInfo : public TAGEBase::BranchInfo
     {
@@ -178,7 +194,7 @@ class MPP_StatisticalCorrector : public StatisticalCorrector
 
     void condBranchUpdate(ThreadID tid, Addr branch_pc, bool taken,
                           StatisticalCorrector::BranchInfo *bi,
-                          Addr corrTarget, bool b, int hitBank, int altBank,
+                          Addr target, bool b, int hitBank, int altBank,
                           int64_t phist) override;
 
     virtual void getBiasLSUM(Addr branch_pc,
@@ -236,12 +252,12 @@ class MultiperspectivePerceptronTAGE : public MultiperspectivePerceptron
 
     bool lookup(ThreadID tid, Addr instPC, void * &bp_history) override;
 
-    void update(ThreadID tid, Addr instPC, bool taken,
-            void *bp_history, bool squashed,
-            const StaticInstPtr & inst,
-            Addr corrTarget) override;
-    void uncondBranch(ThreadID tid, Addr pc, void * &bp_history) override;
-    void squash(ThreadID tid, void *bp_history) override;
+    void update(ThreadID tid, Addr pc, bool taken,
+                void * &bp_history, bool squashed,
+                const StaticInstPtr & inst, Addr target) override;
+    void updateHistories(ThreadID tid, Addr pc, bool uncond, bool taken,
+                         Addr target,  void * &bp_history) override;
+    void squash(ThreadID tid, void * &bp_history) override;
 
 };
 

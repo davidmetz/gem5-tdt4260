@@ -1,4 +1,5 @@
 build
+gem5_build
 parser.out
 parsetab.py
 cscope.files
@@ -9,6 +10,7 @@ cscope.out
 .*.swo
 m5out
 /src/doxygen/html
+/docs/_build
 /ext/dramsim2/DRAMSim2
 /ext/mcpat/regression/*/*.out
 /util/m5/*.o
@@ -34,3 +36,5 @@ configs/dram/lowp_sweep.cfg
 .vscode
 src/tdt4260/prefetcher/spec2017/prefetcher*
 src/tdt4260/prefetcher/spec2017/spec2017_cpts/*
+typings
+.DS_Store

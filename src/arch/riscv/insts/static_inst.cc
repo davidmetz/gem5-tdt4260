@@ -29,6 +29,7 @@
 
 #include "arch/riscv/insts/static_inst.hh"
 
+#include "arch/riscv/isa.hh"
 #include "arch/riscv/pcstate.hh"
 #include "arch/riscv/types.hh"
 #include "cpu/static_inst.hh"

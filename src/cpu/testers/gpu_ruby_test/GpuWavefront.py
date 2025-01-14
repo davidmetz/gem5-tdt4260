@@ -27,14 +27,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.TesterThread import TesterThread
 from m5.params import *
 from m5.proxy import *
 
-from m5.objects.TesterThread import TesterThread
 
 class GpuWavefront(TesterThread):
-    type = 'GpuWavefront'
+    type = "GpuWavefront"
     cxx_header = "cpu/testers/gpu_ruby_test/gpu_wavefront.hh"
-    cxx_class = 'gem5::GpuWavefront'
+    cxx_class = "gem5::GpuWavefront"
 
     cu_id = Param.Int("Compute Unit ID")

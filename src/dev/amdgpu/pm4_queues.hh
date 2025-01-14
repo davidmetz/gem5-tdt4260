@@ -33,6 +33,8 @@
 #ifndef __DEV_AMDGPU_PM4_QUEUES_HH__
 #define __DEV_AMDGPU_PM4_QUEUES_HH__
 
+#include "dev/amdgpu/pm4_defines.hh"
+
 namespace gem5
 {
 
@@ -201,10 +203,24 @@ typedef struct GEM5_PACKED
         };
         uint64_t rb_base;
     };
-    uint32_t sdmax_rlcx_rb_rptr;
-    uint32_t sdmax_rlcx_rb_rptr_hi;
-    uint32_t sdmax_rlcx_rb_wptr;
-    uint32_t sdmax_rlcx_rb_wptr_hi;
+    union
+    {
+        struct
+        {
+            uint32_t sdmax_rlcx_rb_rptr;
+            uint32_t sdmax_rlcx_rb_rptr_hi;
+        };
+        uint64_t rptr;
+    };
+    union
+    {
+        struct
+        {
+            uint32_t sdmax_rlcx_rb_wptr;
+            uint32_t sdmax_rlcx_rb_wptr_hi;
+        };
+        uint64_t wptr;
+    };
     uint32_t sdmax_rlcx_rb_wptr_poll_cntl;
     uint32_t sdmax_rlcx_rb_rptr_addr_hi;
     uint32_t sdmax_rlcx_rb_rptr_addr_lo;
@@ -375,16 +391,16 @@ class PM4Queue
     Addr _offset;
     bool _processing;
     bool _ib;
-    PM4MapQueues *_pkt;
+    PM4MapQueues _pkt;
   public:
     PM4Queue() : _id(0), q(nullptr), _wptr(0), _offset(0), _processing(false),
-        _ib(false), _pkt(nullptr) {}
+        _ib(false), _pkt() {}
     PM4Queue(int id, QueueDesc *queue, Addr offset) :
         _id(id), q(queue), _wptr(queue->rptr), _ibWptr(0), _offset(offset),
-        _processing(false), _ib(false), _pkt(nullptr) {}
+        _processing(false), _ib(false), _pkt() {}
     PM4Queue(int id, QueueDesc *queue, Addr offset, PM4MapQueues *pkt) :
         _id(id), q(queue), _wptr(queue->rptr), _ibWptr(0), _offset(offset),
-        _processing(false), _ib(false), _pkt(pkt) {}
+        _processing(false), _ib(false), _pkt(*pkt) {}
 
     QueueDesc *getMQD() { return q; }
     int id() { return _id; }
@@ -396,14 +412,14 @@ class PM4Queue
     rptr()
     {
         if (ib()) return q->ibBase + q->ibRptr;
-        else return q->base + q->rptr;
+        else return q->base + (q->rptr % size());
     }
 
     Addr
     wptr()
     {
         if (ib()) return q->ibBase + _ibWptr;
-        else return q->base + _wptr;
+        else return q->base + (_wptr % size());
     }
 
     Addr
@@ -466,10 +482,24 @@ class PM4Queue
     void offset(Addr value) { _offset = value; }
     void processing(bool value) { _processing = value; }
     void ib(bool value) { _ib = value; }
-    uint32_t me() { if (_pkt) return _pkt->me; else return 0; }
-    uint32_t pipe() { if (_pkt) return _pkt->pipe; else return 0; }
-    uint32_t queue() { if (_pkt) return _pkt->queueSlot; else return 0; }
-    bool privileged() { assert(_pkt); return _pkt->queueSel == 0 ? 1 : 0; }
+    uint32_t me() { return _pkt.me + 1; }
+    uint32_t pipe() { return _pkt.pipe; }
+    uint32_t queue() { return _pkt.queueSlot; }
+    bool privileged() { return _pkt.queueSel == 0 ? 1 : 0; }
+    uint32_t queueType() { return _pkt.queueType; }
+    bool isStatic() { return (_pkt.queueType != 0); }
+    PM4MapQueues* getPkt() { return &_pkt; }
+    void setPkt(uint32_t me, uint32_t pipe, uint32_t queue, bool privileged,
+                uint32_t queueType) {
+        _pkt.me = me - 1;
+        _pkt.pipe = pipe;
+        _pkt.queueSlot = queue;
+        _pkt.queueSel = (privileged == 0) ? 1 : 0;
+        _pkt.queueType = queueType;
+    }
+
+    // Same computation as processMQD. See comment there for details.
+    uint64_t size() { return 4UL << ((q->hqd_pq_control & 0x3f) + 1); }
 };
 
 } // namespace gem5

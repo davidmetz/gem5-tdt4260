@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2017, 2020 ARM Limited
+ * Copyright (c) 2014, 2017, 2020, 2023 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -44,11 +44,11 @@
 #include <memory>
 
 #include "arch/generic/pcstate.hh"
-#include "arch/vecregs.hh"
 #include "base/types.hh"
-#include "config/the_isa.hh"
+#include "cpu/inst_res.hh"
 #include "cpu/inst_seq.hh"
 #include "cpu/static_inst.hh"
+#include "params/InstTracer.hh"
 #include "sim/sim_object.hh"
 
 namespace gem5
@@ -56,7 +56,7 @@ namespace gem5
 
 class ThreadContext;
 
-namespace Trace {
+namespace trace {
 
 class InstRecord
 {
@@ -97,13 +97,14 @@ class InstRecord
      * @TODO fix this and record all destintations that an instruction writes
      * @see data_status
      */
-    union
+    union Data
     {
-        uint64_t as_int;
-        double as_double;
-        TheISA::VecRegContainer* as_vec;
-        TheISA::VecPredRegContainer* as_pred;
-    } data = {0};
+        ~Data() {}
+        Data() {}
+        uint64_t asInt = 0;
+        double asDouble;
+        InstResult asReg;
+    } data;
 
     /** @defgroup fetch_seq
      * This records the serial number that the instruction was fetched in.
@@ -128,9 +129,8 @@ class InstRecord
         DataInt32 = 4,
         DataInt64 = 8,
         DataDouble = 3,
-        DataVec = 5,
-        DataVecPred = 6
-    } data_status = DataInvalid;
+        DataReg = 5
+    } dataStatus = DataInvalid;
 
     /** @ingroup memory
      * Are the memory fields in the record valid?
@@ -166,13 +166,8 @@ class InstRecord
 
     virtual ~InstRecord()
     {
-        if (data_status == DataVec) {
-            assert(data.as_vec);
-            delete data.as_vec;
-        } else if (data_status == DataVecPred) {
-            assert(data.as_pred);
-            delete data.as_pred;
-        }
+        if (dataStatus == DataReg)
+            data.asReg.~InstResult();
     }
 
     void setWhen(Tick new_when) { when = new_when; }
@@ -189,8 +184,8 @@ class InstRecord
     void
     setData(std::array<T, N> d)
     {
-        data.as_int = d[0];
-        data_status = (DataStatus)sizeof(T);
+        data.asInt = d[0];
+        dataStatus = (DataStatus)sizeof(T);
         static_assert(sizeof(T) == DataInt8 || sizeof(T) == DataInt16 ||
                       sizeof(T) == DataInt32 || sizeof(T) == DataInt64,
                       "Type T has an unrecognized size.");
@@ -199,26 +194,26 @@ class InstRecord
     void
     setData(uint64_t d)
     {
-        data.as_int = d;
-        data_status = DataInt64;
+        data.asInt = d;
+        dataStatus = DataInt64;
     }
     void
     setData(uint32_t d)
     {
-        data.as_int = d;
-        data_status = DataInt32;
+        data.asInt = d;
+        dataStatus = DataInt32;
     }
     void
     setData(uint16_t d)
     {
-        data.as_int = d;
-        data_status = DataInt16;
+        data.asInt = d;
+        dataStatus = DataInt16;
     }
     void
     setData(uint8_t d)
     {
-        data.as_int = d;
-        data_status = DataInt8;
+        data.asInt = d;
+        dataStatus = DataInt8;
     }
 
     void setData(int64_t d) { setData((uint64_t)d); }
@@ -229,22 +224,46 @@ class InstRecord
     void
     setData(double d)
     {
-        data.as_double = d;
-        data_status = DataDouble;
+        data.asDouble = d;
+        dataStatus = DataDouble;
     }
 
     void
-    setData(TheISA::VecRegContainer& d)
+    setData(const RegClass &reg_class, RegVal val)
     {
-        data.as_vec = new TheISA::VecRegContainer(d);
-        data_status = DataVec;
+        new(&data.asReg) InstResult(reg_class, val);
+        switch (reg_class.type()) {
+            case IntRegClass:
+            case MiscRegClass:
+            case CCRegClass:
+                dataStatus = DataInt64;
+                break;
+            case FloatRegClass:
+                dataStatus = DataDouble;
+                break;
+            default:
+                dataStatus = DataReg;
+                break;
+        }
     }
 
     void
-    setData(TheISA::VecPredRegContainer& d)
+    setData(const RegClass &reg_class, const void *val)
     {
-        data.as_pred = new TheISA::VecPredRegContainer(d);
-        data_status = DataVecPred;
+        new(&data.asReg) InstResult(reg_class, val);
+        switch (reg_class.type()) {
+            case IntRegClass:
+            case MiscRegClass:
+            case CCRegClass:
+                dataStatus = DataInt64;
+                break;
+            case FloatRegClass:
+                dataStatus = DataDouble;
+                break;
+            default:
+                dataStatus = DataReg;
+                break;
+        }
     }
 
     void
@@ -279,9 +298,9 @@ class InstRecord
     unsigned getFlags() const { return flags; }
     bool getMemValid() const { return mem_valid; }
 
-    uint64_t getIntData() const { return data.as_int; }
-    double getFloatData() const { return data.as_double; }
-    int getDataStatus() const { return data_status; }
+    uint64_t getIntData() const { return data.asInt; }
+    double getFloatData() const { return data.asDouble; }
+    int getDataStatus() const { return dataStatus; }
 
     InstSeqNum getFetchSeq() const { return fetch_seq; }
     bool getFetchSeqValid() const { return fetch_seq_valid; }
@@ -292,10 +311,37 @@ class InstRecord
     bool getFaulting() const { return faulting; }
 };
 
+/**
+ * The base InstDisassembler class provides a one-API interface
+ * to disassemble the instruction passed as a first argument.
+ * It also provides a base implementation which is
+ * simply calling the StaticInst::disassemble method, which
+ * is the usual interface for disassembling
+ * a gem5 instruction.
+ */
+class InstDisassembler : public SimObject
+{
+  public:
+    InstDisassembler(const SimObjectParams &params)
+      : SimObject(params)
+    {}
+
+    virtual std::string
+    disassemble(StaticInstPtr inst,
+                const PCStateBase &pc,
+                const loader::SymbolTable *symtab) const
+    {
+        return inst->disassemble(pc.instAddr(), symtab);
+    }
+};
+
 class InstTracer : public SimObject
 {
   public:
-    InstTracer(const Params &p) : SimObject(p) {}
+    PARAMS(InstTracer);
+    InstTracer(const Params &p)
+      : SimObject(p), disassembler(p.disassembler)
+    {}
 
     virtual ~InstTracer() {}
 
@@ -303,9 +349,20 @@ class InstTracer : public SimObject
         getInstRecord(Tick when, ThreadContext *tc,
                 const StaticInstPtr staticInst, const PCStateBase &pc,
                 const StaticInstPtr macroStaticInst=nullptr) = 0;
+
+    std::string
+    disassemble(StaticInstPtr inst,
+                const PCStateBase &pc,
+                const loader::SymbolTable *symtab=nullptr) const
+    {
+        return disassembler->disassemble(inst, pc, symtab);
+    }
+
+  private:
+    InstDisassembler *disassembler;
 };
 
-} // namespace Trace
+} // namespace trace
 } // namespace gem5
 
 #endif // __INSTRECORD_HH__

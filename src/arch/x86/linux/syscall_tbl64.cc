@@ -1,4 +1,15 @@
 /*
+ * Copyright (c) 2024 Arm Limited
+ *
+ * The license below extends only to copyright in the software and shall
+ * not be construed as granting a license to any other intellectual
+ * property including but not limited to intellectual property relating
+ * to a hardware implementation of the functionality of the software
+ * licensed hereunder.  You may use the software subject to the license
+ * terms below provided that you ensure that this notice is replicated
+ * unmodified and in its entirety in all distributions of the software,
+ * modified or unmodified, in source code or in binary form.
+ *
  * Copyright 2020 Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +58,7 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     {   5, "fstat", fstat64Func<X86Linux64> },
     {   6, "lstat", lstat64Func<X86Linux64> },
     {   7, "poll", pollFunc<X86Linux64> },
-    {   8, "lseek", lseekFunc },
+    {   8, "lseek", lseekFunc<X86Linux64> },
     {   9, "mmap", mmapFunc<X86Linux64> },
     {  10, "mprotect", ignoreFunc },
     {  11, "munmap", munmapFunc<X86Linux64> },
@@ -122,7 +133,7 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
 #else
     {  78, "getdents" },
 #endif
-    {  79, "getcwd", getcwdFunc },
+    {  79, "getcwd", getcwdFunc<X86Linux64> },
     {  80, "chdir", chdirFunc },
     {  81, "fchdir" },
     {  82, "rename", renameFunc },
@@ -194,10 +205,10 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     { 148, "sched_rr_get_interval" },
     { 149, "mlock" },
     { 150, "munlock" },
-    { 151, "mlockall" },
+    { 151, "mlockall", ignoreFunc },
     { 152, "munlockall" },
     { 153, "vhangup" },
-    { 154, "modify_ldt" },
+    { 154, "modify_ldt", ignoreFunc },
     { 155, "pivot_root" },
     { 156, "_sysctl" },
     { 157, "prctl", ignoreFunc },
@@ -362,7 +373,49 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     { 312, "kcmp" },
     { 313, "finit_module" },
     { 318, "getrandom", getrandomFunc<X86Linux64> },
-    { 334, "rseq", ignoreFunc }
+    { 319, "memfd_create" },
+    { 320, "kexec_file_load" },
+    { 321, "bpf" },
+    { 322, "execveat" },
+    { 323, "userfaultfd" },
+    { 324, "membarrier" },
+    { 325, "mlock2" },
+    { 326, "copy_file_range" },
+    { 327, "preadv2" },
+    { 328, "pwritev2" },
+    { 329, "pkey_mprotect" },
+    { 330, "pkey_alloc" },
+    { 331, "pkey_free" },
+    { 332, "statx", statxFunc<X86Linux64> },
+    { 333, "io_pgetevents" },
+    { 334, "rseq", ignoreFunc },
+    { 424, "pidfd_send_signal" },
+    { 425, "io_uring_setup" },
+    { 426, "io_uring_enter" },
+    { 427, "io_uring_register" },
+    { 428, "open_tree" },
+    { 429, "move_mount" },
+    { 430, "fsopen" },
+    { 431, "fsconfig" },
+    { 432, "fsmount" },
+    { 433, "fspick" },
+    { 434, "pidfd_open" },
+    { 435, "clone3", clone3Func<X86Linux64> },
+    { 436, "close_range" },
+    { 437, "openat2" },
+    { 438, "pidfd_getfd" },
+    { 439, "faccessat2" },
+    { 440, "process_madvise" },
+    { 441, "epoll_pwait2" },
+    { 442, "mount_setattr" },
+    { 443, "quotactl_fd" },
+    { 444, "landlock_create_ruleset" },
+    { 445, "landlock_add_rule" },
+    { 446, "landlock_restrict_self" },
+    { 447, "memfd_secret" },
+    { 448, "process_mrelease" },
+    { 449, "futex_waitv" },
+    { 450, "set_mempolicy_home_node" }
 };
 
 } // namespace X86ISA

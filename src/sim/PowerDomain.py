@@ -36,14 +36,15 @@
 
 import sys
 
-from m5.params import *
 from m5.objects.PowerState import PowerState
+from m5.params import *
+
 
 # A power domain groups multiple ClockedObjects and creates a
 # hierarchy in which follower ClockedObjects (caches for example) can
 # change power state depeding on what the leader objects (CPUs for
 # example) do. The power domain is the link between these.
 class PowerDomain(PowerState):
-    type = 'PowerDomain'
-    cxx_header = 'sim/power_domain.hh'
-    cxx_class = 'gem5::PowerDomain'
+    type = "PowerDomain"
+    cxx_header = "sim/power_domain.hh"
+    cxx_class = "gem5::PowerDomain"

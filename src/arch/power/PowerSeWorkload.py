@@ -23,22 +23,25 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.Workload import SEWorkload
 from m5.params import *
 
-from m5.objects.Workload import SEWorkload
 
 class PowerSEWorkload(SEWorkload):
-    type = 'PowerSEWorkload'
+    type = "PowerSEWorkload"
     cxx_header = "arch/power/se_workload.hh"
-    cxx_class = 'gem5::PowerISA::SEWorkload'
+    cxx_class = "gem5::PowerISA::SEWorkload"
     abstract = True
 
+
 class PowerEmuLinux(PowerSEWorkload):
-    type = 'PowerEmuLinux'
+    type = "PowerEmuLinux"
     cxx_header = "arch/power/linux/se_workload.hh"
-    cxx_class = 'gem5::PowerISA::EmuLinux'
+    cxx_class = "gem5::PowerISA::EmuLinux"
 
     @classmethod
     def _is_compatible_with(cls, obj):
-        return obj.get_arch() in ('power', 'power64') and  \
-                obj.get_op_sys() in ('linux', 'unknown')
+        return obj.get_arch() in ("power", "power64") and obj.get_op_sys() in (
+            "linux",
+            "unknown",
+        )

@@ -33,20 +33,18 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import *
 from m5.params import *
+from m5.SimObject import *
+
 
 # Represents a power model for a simobj
 class PowerModelState(SimObject):
-    type = 'PowerModelState'
+    type = "PowerModelState"
     cxx_header = "sim/power/power_model.hh"
-    cxx_class = 'gem5::PowerModelState'
+    cxx_class = "gem5::PowerModelState"
     abstract = True
 
     cxx_exports = [
         PyBindMethod("getDynamicPower"),
         PyBindMethod("getStaticPower"),
     ]
-
-
-

@@ -33,10 +33,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.BaseArmKvmCPU import BaseArmKvmCPU
+from m5.params import *
+
 
 class ArmV8KvmCPU(BaseArmKvmCPU):
-    type = 'ArmV8KvmCPU'
+    type = "ArmV8KvmCPU"
     cxx_header = "arch/arm/kvm/armv8_cpu.hh"
-    cxx_class = 'gem5::ArmV8KvmCPU'
+    cxx_class = "gem5::ArmV8KvmCPU"

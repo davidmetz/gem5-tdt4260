@@ -201,8 +201,9 @@ tryTranslate(ThreadContext *tc, Addr addr)
            mmu->translateFunctional(req, tc, BaseMMU::Execute) == NoFault;
 }
 
-RemoteGDB::RemoteGDB(System *_system, int _port)
-    : BaseRemoteGDB(_system, _port), regCache32(this), regCache64(this)
+RemoteGDB::RemoteGDB(System *_system, ListenSocketConfig _listen_config)
+    : BaseRemoteGDB(_system, _listen_config),
+    regCache32(this), regCache64(this)
 {
 }
 
@@ -243,7 +244,7 @@ RemoteGDB::AArch64GdbRegCache::getRegs(ThreadContext *context)
     size_t base = 0;
     for (int i = 0; i < NumVecV8ArchRegs; i++) {
         ArmISA::VecRegContainer vc;
-        context->getReg(RegId(VecRegClass, i), &vc);
+        context->getReg(vecRegClass[i], &vc);
         auto v = vc.as<VecElem>();
         for (size_t j = 0; j < NumVecElemPerNeonVecReg; j++) {
             r.v[base] = v[j];
@@ -273,7 +274,7 @@ RemoteGDB::AArch64GdbRegCache::setRegs(ThreadContext *context) const
     size_t base = 0;
     for (int i = 0; i < NumVecV8ArchRegs; i++) {
         auto *vc = static_cast<ArmISA::VecRegContainer *>(
-                context->getWritableReg(RegId(VecRegClass, i)));
+                context->getWritableReg(vecRegClass[i]));
         auto v = vc->as<VecElem>();
         for (size_t j = 0; j < NumVecElemPerNeonVecReg; j++) {
             v[j] = r.v[base];

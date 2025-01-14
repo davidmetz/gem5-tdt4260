@@ -68,7 +68,7 @@ class Process;
 class Processor;
 class ThreadContext;
 
-namespace Trace
+namespace trace
 {
     class InstRecord;
 }
@@ -94,7 +94,7 @@ class BaseSimpleCPU : public BaseCPU
     virtual ~BaseSimpleCPU();
     void wakeup(ThreadID tid) override;
   public:
-    Trace::InstRecord *traceData;
+    trace::InstRecord *traceData;
     CheckerCPU *checker;
 
     std::vector<SimpleExecContext*> threadInfo;
@@ -182,6 +182,8 @@ class BaseSimpleCPU : public BaseCPU
     }
 
     void countInst();
+    void countFetchInst();
+    void countCommitInst();
     Counter totalInsts() const override;
     Counter totalOps() const override;
 

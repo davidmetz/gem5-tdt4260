@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2013,2016-2018 ARM Limited
+ * Copyright (c) 2010-2013,2016-2018, 2022 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -398,12 +398,7 @@ class ArmStaticInst : public StaticInst
         xc->pcState(pc);
     }
 
-    inline Fault
-    disabledFault() const
-    {
-        return std::make_shared<UndefinedInstruction>(machInst, false,
-                                                      mnemonic, true);
-    }
+    inline Fault disabledFault() const { return undefined(true); }
 
     // Utility function used by checkForWFxTrap32 and checkForWFxTrap64
     // Returns true if processor has to trap a WFI/WFE instruction.
@@ -518,6 +513,35 @@ class ArmStaticInst : public StaticInst
      */
     Fault checkSveEnabled(ThreadContext *tc, CPSR cpsr, CPACR cpacr) const;
 
+
+    /**
+     * Trap an access to SME registers due to access control bits.
+     *
+     * @param el Target EL for the trap.
+     * @param iss ISS to be used for the trap.
+     */
+    Fault smeAccessTrap(ExceptionLevel el, uint32_t iss = 0) const;
+
+    /**
+     * Check if SME is enabled by checking the SME and FP bits of
+     * CPACR_EL1, CPTR_EL2, and CPTR_EL3
+     */
+    Fault checkSmeEnabled(ThreadContext *tc, CPSR cpsr, CPACR cpacr) const;
+
+    /**
+     * Check an SME access against CPACR_EL1, CPTR_EL2, and CPTR_EL3.
+     * This is purely used from the management instructions as it should
+     * be possible to call SMSTART/SMSTOP without having the floating
+     * point flags correctly set up.
+     */
+    Fault checkSmeAccess(ThreadContext *tc, CPSR cpsr, CPACR cpacr) const;
+
+    /**
+     * Check an SVE access against CPACR_EL1, CPTR_EL2, and CPTR_EL3, but
+     * choosing the correct set of traps to check based on Streaming Mode
+     */
+    Fault checkSveSmeEnabled(ThreadContext *tc, CPSR cpsr, CPACR cpacr) const;
+
     /**
      * Get the new PSTATE from a SPSR register in preparation for an
      * exception return.
@@ -587,6 +611,32 @@ class ArmStaticInst : public StaticInst
     {
         return getCurSveVecLenInBits(tc) / (8 * sizeof(T));
     }
+
+    static unsigned getCurSmeVecLenInBits(ThreadContext *tc);
+
+    static unsigned
+    getCurSmeVecLenInQWords(ThreadContext *tc)
+    {
+        return getCurSmeVecLenInBits(tc) >> 6;
+    }
+
+    template<typename T>
+    static unsigned
+    getCurSmeVecLen(ThreadContext *tc)
+    {
+        return getCurSmeVecLenInBits(tc) / (8 * sizeof(T));
+    }
+
+    inline Fault
+    undefined(bool disabled=false) const
+    {
+        return std::make_shared<UndefinedInstruction>(
+            machInst, false, mnemonic, disabled);
+    }
+
+    Fault
+    generateTrap(ArmISA::ExceptionLevel el,
+                 ArmISA::ExceptionClass ec, uint32_t iss) const;
 };
 
 } // namespace ArmISA

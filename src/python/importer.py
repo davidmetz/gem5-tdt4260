@@ -29,6 +29,7 @@ import importlib.abc
 import importlib.util
 import os
 
+
 class ByteCodeLoader(importlib.abc.Loader):
     def __init__(self, code):
         super().__init__()
@@ -37,18 +38,22 @@ class ByteCodeLoader(importlib.abc.Loader):
     def exec_module(self, module):
         exec(self.code, module.__dict__)
 
+    def get_code(self, _):
+        return self.code
+
+
 # Simple importer that allows python to import data from a dict of
 # code objects.  The keys are the module path, and the items are the
 # filename and bytecode of the file.
-class CodeImporter(object):
+class CodeImporter:
     def __init__(self):
         self.modules = {}
-        override_var = os.environ.get('M5_OVERRIDE_PY_SOURCE', 'false')
-        self.override = (override_var.lower() in ('true', 'yes'))
+        override_var = os.environ.get("M5_OVERRIDE_PY_SOURCE", "false")
+        self.override = override_var.lower() in ("true", "yes")
 
     def add_module(self, abspath, modpath, code):
         if modpath in self.modules:
-            raise AttributeError("%s already found in importer" % modpath)
+            raise AttributeError(f"{modpath} already found in importer")
 
         self.modules[modpath] = (abspath, code)
 
@@ -59,17 +64,18 @@ class CodeImporter(object):
         abspath, code = self.modules[fullname]
 
         if self.override and os.path.exists(abspath):
-            src = open(abspath, 'r').read()
-            code = compile(src, abspath, 'exec')
+            src = open(abspath).read()
+            code = compile(src, abspath, "exec")
 
-        is_package = (os.path.basename(abspath) == '__init__.py')
+        is_package = os.path.basename(abspath) == "__init__.py"
         spec = importlib.util.spec_from_loader(
-                name=fullname, loader=ByteCodeLoader(code),
-                is_package=is_package)
+            name=fullname, loader=ByteCodeLoader(code), is_package=is_package
+        )
 
         spec.loader_state = self.modules.keys()
 
         return spec
+
 
 # Create an importer and add it to the meta_path so future imports can
 # use it.  There's currently nothing in the importer, but calls to
@@ -79,6 +85,7 @@ def install():
     global add_module
     add_module = importer.add_module
     import sys
+
     sys.meta_path.insert(0, importer)
 
     # Injected into this module's namespace by the c++ code that loads it.

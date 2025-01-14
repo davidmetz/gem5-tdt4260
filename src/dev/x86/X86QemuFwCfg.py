@@ -23,26 +23,32 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.E820 import X86E820Entry
-from m5.objects.QemuFwCfg import QemuFwCfgIo, QemuFwCfgItem
+from m5.objects.QemuFwCfg import (
+    QemuFwCfgIo,
+    QemuFwCfgItem,
+)
+from m5.params import *
+
 
 def x86IOAddress(port):
     IO_address_space_base = 0x8000000000000000
-    return IO_address_space_base + port;
+    return IO_address_space_base + port
+
 
 class X86QemuFwCfg(QemuFwCfgIo):
     selector_addr = x86IOAddress(0x510)
 
+
 class QemuFwCfgItemE820(QemuFwCfgItem):
-    type = 'QemuFwCfgItemE820'
-    cxx_class = 'gem5::qemu::FwCfgItemFactory<gem5::qemu::FwCfgItemE820>'
-    cxx_template_params = ['class ItemType']
-    cxx_header = 'dev/x86/qemu_fw_cfg.hh'
+    type = "QemuFwCfgItemE820"
+    cxx_class = "gem5::qemu::FwCfgItemFactory<gem5::qemu::FwCfgItemE820>"
+    cxx_template_params = ["class ItemType"]
+    cxx_header = "dev/x86/qemu_fw_cfg.hh"
 
     # There is a fixed index for this file.
     index = 0x8003
     arch_specific = True
     path = "etc/e820"
 
-    entries = VectorParam.X86E820Entry('entries for the e820 table')
+    entries = VectorParam.X86E820Entry("entries for the e820 table")

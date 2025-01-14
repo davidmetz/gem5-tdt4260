@@ -302,18 +302,15 @@ enterREDState(ThreadContext *tc)
 void
 doREDFault(ThreadContext *tc, TrapType tt)
 {
-    RegVal TL = tc->readMiscRegNoEffect(MISCREG_TL);
     RegVal TSTATE = tc->readMiscRegNoEffect(MISCREG_TSTATE);
     PSTATE pstate = tc->readMiscRegNoEffect(MISCREG_PSTATE);
     HPSTATE hpstate = tc->readMiscRegNoEffect(MISCREG_HPSTATE);
-    CCR ccr = tc->readIntReg(INTREG_CCR);
+    CCR ccr = tc->getReg(int_reg::Ccr);
     RegVal ASI = tc->readMiscRegNoEffect(MISCREG_ASI);
     RegVal CWP = tc->readMiscRegNoEffect(MISCREG_CWP);
-    RegVal CANSAVE = tc->readMiscRegNoEffect(INTREG_CANSAVE);
+    RegVal CANSAVE = tc->getReg(int_reg::Cansave);
     RegVal GL = tc->readMiscRegNoEffect(MISCREG_GL);
     auto &pc = tc->pcState().as<PCState>();
-
-    TL++;
 
     Addr pcMask = pstate.am ? mask(32) : mask(64);
 
@@ -385,10 +382,10 @@ doNormalFault(ThreadContext *tc, TrapType tt, bool gotoHpriv)
     RegVal TSTATE = tc->readMiscRegNoEffect(MISCREG_TSTATE);
     PSTATE pstate = tc->readMiscRegNoEffect(MISCREG_PSTATE);
     HPSTATE hpstate = tc->readMiscRegNoEffect(MISCREG_HPSTATE);
-    CCR ccr = tc->readIntReg(INTREG_CCR);
+    CCR ccr = tc->getReg(int_reg::Ccr);
     RegVal ASI = tc->readMiscRegNoEffect(MISCREG_ASI);
     RegVal CWP = tc->readMiscRegNoEffect(MISCREG_CWP);
-    RegVal CANSAVE = tc->readIntReg(INTREG_CANSAVE);
+    RegVal CANSAVE = tc->getReg(int_reg::Cansave);
     RegVal GL = tc->readMiscRegNoEffect(MISCREG_GL);
     auto &pc = tc->pcState().as<PCState>();
 

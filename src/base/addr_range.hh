@@ -455,7 +455,25 @@ class AddrRange
             return r.contains(_start) && r.contains(_end - 1) &&
                 size() <= r.granularity();
         } else {
-            return _start >= r._start && _end <= r._end;
+
+            if (_end <= _start){
+                // Special case: if our range wraps around that is
+                // _end is 2^64 so it wraps to 0.
+                // In this case we will be a subset only if r._end
+                // also wraps around.
+                return _start >= r._start && r._end == 0;
+            } else if (r._end <= r._start){
+                // Special case: if r wraps around that is
+                // r._end is 2^64 so it wraps to 0.
+                // In this case we will be a subset only if our _start
+                // is within r._start/ _end does not matter
+                // because r wraps around.
+                return _start >= r._start;
+            } else {
+                // Normal case: Check if our range is completely within 'r'.
+                return _start >= r._start && _end <= r._end;
+            }
+
         }
     }
 
@@ -731,6 +749,22 @@ class AddrRange
     operator!=(const AddrRange& r) const
     {
         return !(*this == r);
+    }
+
+    /**
+     * @ingroup api_addr_range
+     */
+    AddrRange
+    operator&(const AddrRange& r) const
+    {
+        panic_if(this->interleaved() || r.interleaved(),
+                 "Cannot calculate intersection of interleaved ranges.");
+        Addr start = std::max(this->_start, r._start);
+        Addr end = std::min(this->_end, r._end);
+        if (end <= start) {
+            return AddrRange(0, 0);
+        }
+        return AddrRange(start, end);
     }
 };
 

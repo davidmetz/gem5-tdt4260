@@ -25,25 +25,29 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from .abstract_ruby_cache_hierarchy import AbstractRubyCacheHierarchy
-from ..abstract_two_level_cache_hierarchy import AbstractTwoLevelCacheHierarchy
-from ....coherence_protocol import CoherenceProtocol
-from ....isas import ISA
-from ...boards.abstract_board import AbstractBoard
-from ....utils.requires import requires
-
-from .topologies.simple_pt2pt import SimplePt2Pt
-from .caches.mesi_two_level.l1_cache import L1Cache
-from .caches.mesi_two_level.l2_cache import L2Cache
-from .caches.mesi_two_level.directory import Directory
-from .caches.mesi_two_level.dma_controller import DMAController
-
 from m5.objects import (
-    RubySystem,
-    RubySequencer,
     DMASequencer,
     RubyPortProxy,
+    RubySequencer,
+    RubySystem,
 )
+
+from ....coherence_protocol import CoherenceProtocol
+from ....utils.override import overrides
+from ....utils.requires import requires
+
+requires(coherence_protocol_required=CoherenceProtocol.MESI_TWO_LEVEL)
+
+from ....isas import ISA
+from ...boards.abstract_board import AbstractBoard
+from ..abstract_cache_hierarchy import AbstractCacheHierarchy
+from ..abstract_two_level_cache_hierarchy import AbstractTwoLevelCacheHierarchy
+from .abstract_ruby_cache_hierarchy import AbstractRubyCacheHierarchy
+from .caches.mesi_two_level.directory import Directory
+from .caches.mesi_two_level.dma_controller import DMAController
+from .caches.mesi_two_level.l1_cache import L1Cache
+from .caches.mesi_two_level.l2_cache import L2Cache
+from .topologies.simple_pt2pt import SimplePt2Pt
 
 
 class MESITwoLevelCacheHierarchy(
@@ -80,19 +84,21 @@ class MESITwoLevelCacheHierarchy(
 
         self._num_l2_banks = num_l2_banks
 
+    @overrides(AbstractCacheHierarchy)
+    def get_coherence_protocol(self):
+        return CoherenceProtocol.MESI_TWO_LEVEL
+
     def incorporate_cache(self, board: AbstractBoard) -> None:
-
-        requires(coherence_protocol_required=CoherenceProtocol.MESI_TWO_LEVEL)
-
+        super().incorporate_cache(board)
         cache_line_size = board.get_cache_line_size()
 
         self.ruby_system = RubySystem()
 
-        # MESI_Two_Level needs 5 virtual networks
-        self.ruby_system.number_of_virtual_networks = 5
+        # MESI_Two_Level needs 3 virtual networks
+        self.ruby_system.number_of_virtual_networks = 3
 
         self.ruby_system.network = SimplePt2Pt(self.ruby_system)
-        self.ruby_system.network.number_of_virtual_networks = 5
+        self.ruby_system.network.number_of_virtual_networks = 3
 
         self._l1_controllers = []
         for i, core in enumerate(board.get_processor().get_cores()):
@@ -113,6 +119,7 @@ class MESITwoLevelCacheHierarchy(
                 version=i,
                 dcache=cache.L1Dcache,
                 clk_domain=cache.clk_domain,
+                ruby_system=self.ruby_system,
             )
 
             if board.has_io_bus():
@@ -154,7 +161,7 @@ class MESITwoLevelCacheHierarchy(
 
         self._directory_controllers = [
             Directory(self.ruby_system.network, cache_line_size, range, port)
-            for range, port in board.get_memory().get_mem_ports()
+            for range, port in board.get_mem_ports()
         ]
         # TODO: Make this prettier: The problem is not being able to proxy
         # the ruby system correctly
@@ -166,7 +173,11 @@ class MESITwoLevelCacheHierarchy(
             dma_ports = board.get_dma_ports()
             for i, port in enumerate(dma_ports):
                 ctrl = DMAController(self.ruby_system.network, cache_line_size)
-                ctrl.dma_sequencer = DMASequencer(version=i, in_ports=port)
+                ctrl.dma_sequencer = DMASequencer(
+                    version=i,
+                    in_ports=port,
+                    ruby_system=self.ruby_system,
+                )
                 self._dma_controllers.append(ctrl)
                 ctrl.ruby_system = self.ruby_system
 
@@ -191,5 +202,14 @@ class MESITwoLevelCacheHierarchy(
 
         # Set up a proxy port for the system_port. Used for load binaries and
         # other functional-only things.
-        self.ruby_system.sys_port_proxy = RubyPortProxy()
+        self.ruby_system.sys_port_proxy = RubyPortProxy(
+            ruby_system=self.ruby_system
+        )
         board.connect_system_port(self.ruby_system.sys_port_proxy.in_ports)
+
+    @overrides(AbstractRubyCacheHierarchy)
+    def _reset_version_numbers(self):
+        Directory._version = 0
+        L1Cache._version = 0
+        L2Cache._version = 0
+        DMAController._version = 0

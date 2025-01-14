@@ -248,15 +248,28 @@ namespace VegaISA
 
         // Needed because can't take addr of bitfield
         int reg = instData.SSRC0;
+        /*
+          S_GETPC_B64 does not use SSRC0, so don't put anything on srcOps
+          for it (0x1c is 29 base 10, which is the opcode for S_GETPC_B64).
+         */
         if (instData.OP != 0x1C) {
             srcOps.emplace_back(reg, getOperandSize(opNum), true,
                                   isScalarReg(instData.SSRC0), false, false);
             opNum++;
         }
 
-        reg = instData.SDST;
-        dstOps.emplace_back(reg, getOperandSize(opNum), false,
+        /*
+          S_SETPC_B64, S_RFE_B64, S_CBRANCH_JOIN, and S_SET_GPR_IDX_IDX do not
+          use SDST, so don't put anything on dstOps for them.
+        */
+        if ((instData.OP != 0x1D) /* S_SETPC_B64 (29 base 10) */ &&
+            (instData.OP != 0x1F) /* S_RFE_B64 (31 base 10) */ &&
+            (instData.OP != 0x2E) /* S_CBRANCH_JOIN (46 base 10) */ &&
+            (instData.OP != 0x32)) /* S_SET_GPR_IDX_IDX (50 base 10) */ {
+          reg = instData.SDST;
+          dstOps.emplace_back(reg, getOperandSize(opNum), false,
                               isScalarReg(instData.SDST), false, false);
+        }
 
         assert(srcOps.size() == numSrcRegOperands());
         assert(dstOps.size() == numDstRegOperands());
@@ -759,8 +772,21 @@ namespace VegaISA
 
         if (numDstRegOperands()) {
             reg = instData.VDST;
-            dstOps.emplace_back(reg, getOperandSize(opNum), false,
-                                  false, true, false);
+            /*
+              The v_readfirstlane_b32 instruction (op = 2) is a special case
+              VOP1 instruction which has a scalar register as the destination.
+              (See section 6.6.2 "Special Cases" in the Vega ISA manual)
+
+              Therefore we change the dest op to be scalar reg = true and
+              vector reg = false in reserve of all other instructions.
+             */
+            if (instData.OP == 2) {
+                dstOps.emplace_back(reg, getOperandSize(opNum), false,
+                                      true, false, false);
+            } else {
+                dstOps.emplace_back(reg, getOperandSize(opNum), false,
+                                      false, true, false);
+            }
         }
 
         assert(srcOps.size() == numSrcRegOperands());
@@ -893,7 +919,14 @@ namespace VegaISA
         std::stringstream dis_stream;
         dis_stream << _opcode << " vcc, ";
 
-        dis_stream << opSelectorToRegSym(instData.SRC0) << ", ";
+        if ((instData.SRC0 == REG_SRC_LITERAL) ||
+            (instData.SRC0 == REG_SRC_DPP) ||
+            (instData.SRC0 == REG_SRC_SWDA)) {
+            dis_stream << "0x" << std::hex << std::setfill('0') << std::setw(8)
+                       << _srcLiteral << ", ";
+        } else {
+            dis_stream << opSelectorToRegSym(instData.SRC0) << ", ";
+        }
         dis_stream << "v" << instData.VSRC1;
 
         disassembly = dis_stream.str();
@@ -1141,6 +1174,158 @@ namespace VegaISA
 
         if (readsVCC())
             dis_stream << ", vcc";
+
+        disassembly = dis_stream.str();
+    }
+
+    // --- Inst_VOP3P base class methods ---
+
+    Inst_VOP3P::Inst_VOP3P(InFmt_VOP3P *iFmt, const std::string &opcode)
+        : VEGAGPUStaticInst(opcode)
+    {
+        // copy first instruction DWORD
+        instData = iFmt[0];
+        // copy second instruction DWORD
+        extData = ((InFmt_VOP3P_1 *)iFmt)[1];
+    } // Inst_VOP3P
+
+    Inst_VOP3P::~Inst_VOP3P()
+    {
+    } // ~Inst_VOP3P
+
+    void
+    Inst_VOP3P::initOperandInfo()
+    {
+        // Also takes care of bitfield addr issue
+        unsigned int srcs[3] = {extData.SRC0, extData.SRC1, extData.SRC2};
+
+        int opNum = 0;
+
+        int numSrc = numSrcRegOperands();
+
+        for (opNum = 0; opNum < numSrc; opNum++) {
+            srcOps.emplace_back(srcs[opNum], getOperandSize(opNum), true,
+                                  isScalarReg(srcs[opNum]),
+                                  isVectorReg(srcs[opNum]), false);
+        }
+
+        // There is always one dest
+        // Needed because can't take addr of bitfield
+        int reg = instData.VDST;
+        dstOps.emplace_back(reg, getOperandSize(opNum), false,
+                              false, true, false);
+        opNum++;
+
+        assert(srcOps.size() == numSrcRegOperands());
+        assert(dstOps.size() == numDstRegOperands());
+    }
+
+    int
+    Inst_VOP3P::instSize() const
+    {
+        return 8;
+    } // instSize
+
+    void
+    Inst_VOP3P::generateDisassembly()
+    {
+        std::stringstream dis_stream;
+        dis_stream << _opcode << " ";
+
+        // There is always a dest and the index is after the src operands
+        // The output size much be a multiple of dword size
+        int dst_size = getOperandSize(numSrcRegOperands());
+
+        dis_stream << opSelectorToRegSym(instData.VDST + 0x100, dst_size / 4);
+
+        unsigned int srcs[3] = {extData.SRC0, extData.SRC1, extData.SRC2};
+        for (int opnum = 0; opnum < numSrcRegOperands(); opnum++) {
+            int num_regs = getOperandSize(opnum) / 4;
+            dis_stream << ", " << opSelectorToRegSym(srcs[opnum], num_regs);
+        }
+
+        // Print op_sel only if one is non-zero
+        if (instData.OPSEL) {
+            int opsel = instData.OPSEL;
+
+            dis_stream << " op_sel:[" << bits(opsel, 0, 0) << ","
+                    << bits(opsel, 1, 1) << "," << bits(opsel, 2, 2) << "]";
+        }
+
+        disassembly = dis_stream.str();
+    }
+
+    // --- Inst_VOP3P_MAI base class methods ---
+
+    Inst_VOP3P_MAI::Inst_VOP3P_MAI(InFmt_VOP3P_MAI *iFmt,
+                                   const std::string &opcode)
+        : VEGAGPUStaticInst(opcode)
+    {
+        // copy first instruction DWORD
+        instData = iFmt[0];
+        // copy second instruction DWORD
+        extData = ((InFmt_VOP3P_MAI_1 *)iFmt)[1];
+    } // Inst_VOP3P_MAI
+
+    Inst_VOP3P_MAI::~Inst_VOP3P_MAI()
+    {
+    } // ~Inst_VOP3P_MAI
+
+    void
+    Inst_VOP3P_MAI::initOperandInfo()
+    {
+        // Also takes care of bitfield addr issue
+        unsigned int srcs[3] = {extData.SRC0, extData.SRC1, extData.SRC2};
+
+        int opNum = 0;
+
+        int numSrc = numSrcRegOperands();
+
+        for (opNum = 0; opNum < numSrc; opNum++) {
+            srcOps.emplace_back(srcs[opNum], getOperandSize(opNum), true,
+                                  isScalarReg(srcs[opNum]),
+                                  isVectorReg(srcs[opNum]), false);
+        }
+
+        // There is always one dest
+        // Needed because can't take addr of bitfield
+        int reg = instData.VDST;
+        dstOps.emplace_back(reg, getOperandSize(opNum), false,
+                              false, true, false);
+        opNum++;
+
+        assert(srcOps.size() == numSrcRegOperands());
+        assert(dstOps.size() == numDstRegOperands());
+    }
+
+    int
+    Inst_VOP3P_MAI::instSize() const
+    {
+        return 8;
+    } // instSize
+
+    void
+    Inst_VOP3P_MAI::generateDisassembly()
+    {
+        std::stringstream dis_stream;
+        dis_stream << _opcode << " ";
+
+        // There is always a dest and the index is after the src operands
+        // The output size much be a multiple of dword size
+        int dst_size = getOperandSize(numSrcRegOperands());
+
+        // opSelectorToRegSym handles formating for us. VDST is always VGPR
+        // so only the last 8 bits are used. This adds the implicit 9th bit
+        // which is 1 for VGPRs as VGPR op nums are from 256-255.
+        int dst_opnum = instData.VDST + 0x100;
+
+        dis_stream << opSelectorToRegSym(dst_opnum, dst_size / 4);
+
+        unsigned int srcs[3] = {extData.SRC0, extData.SRC1, extData.SRC2};
+        for (int opnum = 0; opnum < numSrcRegOperands(); opnum++) {
+            int num_regs = getOperandSize(opnum) / 4;
+            dis_stream << ", " << opSelectorToRegSym(srcs[opnum], num_regs);
+        }
 
         disassembly = dis_stream.str();
     }
@@ -1513,6 +1698,8 @@ namespace VegaISA
         // The SEG field specifies FLAT(0) SCRATCH(1) or GLOBAL(2)
         if (iFmt->SEG == 0) {
             setFlag(Flat);
+        } else if (iFmt->SEG == 1) {
+            setFlag(FlatScratch);
         } else if (iFmt->SEG == 2) {
             setFlag(FlatGlobal);
         } else {
@@ -1540,12 +1727,12 @@ namespace VegaISA
     Inst_FLAT::initOperandInfo()
     {
         // One of the flat subtypes should be specified via flags
-        assert(isFlat() ^ isFlatGlobal());
+        assert(isFlat() ^ isFlatGlobal() ^ isFlatScratch());
 
         if (isFlat()) {
             initFlatOperandInfo();
-        } else if (isFlatGlobal()) {
-            initGlobalOperandInfo();
+        } else if (isFlatGlobal() || isFlatScratch()) {
+            initGlobalScratchOperandInfo();
         } else {
             panic("Unknown flat subtype!\n");
         }
@@ -1589,7 +1776,7 @@ namespace VegaISA
     }
 
     void
-    Inst_FLAT::initGlobalOperandInfo()
+    Inst_FLAT::initGlobalScratchOperandInfo()
     {
         //3 formats:
         // 1 dst + 2 src (load)
@@ -1658,12 +1845,12 @@ namespace VegaISA
     Inst_FLAT::generateDisassembly()
     {
         // One of the flat subtypes should be specified via flags
-        assert(isFlat() ^ isFlatGlobal());
+        assert(isFlat() ^ isFlatGlobal() ^ isFlatScratch());
 
-        if (isFlat()) {
+        if (isFlatGlobal() || isFlatScratch()) {
+            generateGlobalScratchDisassembly();
+        } else if (isFlat()) {
             generateFlatDisassembly();
-        } else if (isFlatGlobal()) {
-            generateGlobalDisassembly();
         } else {
             panic("Unknown flat subtype!\n");
         }
@@ -1675,39 +1862,70 @@ namespace VegaISA
         std::stringstream dis_stream;
         dis_stream << _opcode << " ";
 
-        if (isLoad())
-            dis_stream << "v" << extData.VDST << ", ";
+        if (isLoad() || isAtomic()) {
+            int dst_size = getOperandSize(numSrcRegOperands()) / 4;
+            dis_stream << opSelectorToRegSym(extData.VDST + 0x100, dst_size)
+                       << ", ";
+        }
 
-        dis_stream << "v[" << extData.ADDR << ":" << extData.ADDR + 1 << "]";
+        dis_stream << opSelectorToRegSym(extData.ADDR + 0x100, 2);
 
-        if (isStore())
-            dis_stream << ", v" << extData.DATA;
+        if (isStore() || isAtomic()) {
+            int src_size = getOperandSize(1) / 4;
+            dis_stream << ", "
+                << opSelectorToRegSym(extData.DATA + 0x100, src_size);
+        }
 
         disassembly = dis_stream.str();
     }
 
     void
-    Inst_FLAT::generateGlobalDisassembly()
+    Inst_FLAT::generateGlobalScratchDisassembly()
     {
         // Replace flat_ with global_ in assembly string
         std::string global_opcode = _opcode;
-        global_opcode.replace(0, 4, "global");
+        if (isFlatGlobal()) {
+            global_opcode.replace(0, 4, "global");
+        } else {
+            assert(isFlatScratch());
+            global_opcode.replace(0, 4, "scratch");
+        }
 
         std::stringstream dis_stream;
         dis_stream << global_opcode << " ";
 
-        if (isLoad())
-            dis_stream << "v" << extData.VDST << ", ";
+        if (isLoad() || isAtomic()) {
+            // dest is the first operand after all the src operands
+            int dst_size = getOperandSize(numSrcRegOperands()) / 4;
+            dis_stream << opSelectorToRegSym(extData.VDST + 0x100, dst_size)
+                       << ", ";
+        }
 
-        dis_stream << "v[" << extData.ADDR << ":" << extData.ADDR + 1 << "]";
+        if (extData.SADDR == 0x7f) {
+            dis_stream << opSelectorToRegSym(extData.ADDR + 0x100, 2);
+        } else {
+            dis_stream << opSelectorToRegSym(extData.ADDR + 0x100, 1);
+        }
 
-        if (isStore())
-            dis_stream << ", v" << extData.DATA;
+        if (isStore() || isAtomic()) {
+            int src_size = getOperandSize(1) / 4;
+            dis_stream << ", "
+                << opSelectorToRegSym(extData.DATA + 0x100, src_size);
+        }
 
-        if (extData.SADDR == 0x7f)
+        if (extData.SADDR == 0x7f) {
             dis_stream << ", off";
-        else
-            dis_stream << ", " << extData.SADDR;
+        } else {
+            dis_stream << ", " << opSelectorToRegSym(extData.SADDR, 2);
+        }
+
+        if (instData.OFFSET) {
+            dis_stream << " offset:" << instData.OFFSET;
+        }
+
+        if (instData.GLC) {
+            dis_stream << " glc";
+        }
 
         disassembly = dis_stream.str();
     }

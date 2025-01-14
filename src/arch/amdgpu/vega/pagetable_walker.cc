@@ -53,8 +53,7 @@ Walker::startFunctional(Addr base, Addr &addr, unsigned &logBytes,
     Addr vaddr = addr;
     Fault fault = startFunctional(base, vaddr, pte, logBytes, mode);
     isSystem = pte.s;
-    addr = ((pte.ppn << PageShift) & ~mask(logBytes))
-         | (vaddr & mask(logBytes));
+    addr = ((pte.ppn << PageShift) + (vaddr & mask(logBytes)));
 
     return fault;
 }
@@ -182,8 +181,8 @@ Walker::WalkerState::startWalk()
             sendPackets();
         } else {
             // Set physical page address in entry
-            entry.paddr = bits(entry.pte, 47, entry.logBytes);
-            entry.paddr <<= entry.logBytes;
+            entry.paddr = entry.pte.ppn << PageShift;
+            entry.paddr += entry.vaddr & mask(entry.logBytes);
 
             // Insert to TLB
             assert(walker);
@@ -240,13 +239,35 @@ Walker::WalkerState::walkStateMachine(PageTableEntry &pte, Addr &nextRead,
     Addr part2 = 0;
     PageDirectoryEntry pde = static_cast<PageDirectoryEntry>(pte);
 
-    // For a four level page table block fragment size should not be needed.
-    // For now issue a panic to prevent strange behavior if it is non-zero.
-    panic_if(pde.blockFragmentSize, "PDE blockFragmentSize must be 0");
+    // Block fragment size can change the size of the pages pointed to while
+    // moving to the next PDE. A value of 0 implies native page size. A
+    // non-zero value implies the next leaf in the page table is a PTE unless
+    // the F bit is set. If we see a non-zero value, set it here and print
+    // for debugging.
+    if (pde.blockFragmentSize) {
+        DPRINTF(GPUPTWalker,
+                "blockFragmentSize: %d, pde: %#016lx, state: %d\n",
+                pde.blockFragmentSize, pde, state);
+        blockFragmentSize = pde.blockFragmentSize;
+
+        // At this time, only a value of 9 is used in the driver:
+        // https://github.com/torvalds/linux/blob/master/drivers/gpu/drm/
+        //     amd/amdgpu/gmc_v9_0.c#L1165
+        assert(pde.blockFragmentSize == 9);
+    }
 
     switch(state) {
       case PDE2:
-        fatal_if(pde.p, "Fragment in PDE2 not implemented");
+        if (pde.p) {
+            DPRINTF(GPUPTWalker, "Treating PDE2 as PTE: %#016x frag: %d\n",
+                    (uint64_t)pte, pte.fragment);
+            entry.pte = pte;
+            int fragment = pte.fragment;
+            entry.logBytes = PageShift + std::min(3*9, fragment);
+            entry.vaddr <<= PageShift;
+            entry.vaddr = entry.vaddr & ~mask(entry.logBytes);
+            doEndWalk = true;
+        }
 
         // Read the pde1Addr
         part1 = ((((uint64_t)pte) >> 6) << 3);
@@ -258,7 +279,16 @@ Walker::WalkerState::walkStateMachine(PageTableEntry &pte, Addr &nextRead,
         nextState = PDE1;
         break;
       case PDE1:
-        fatal_if(pde.p, "Fragment in PDE1 not implemented");
+        if (pde.p) {
+            DPRINTF(GPUPTWalker, "Treating PDE1 as PTE: %#016x frag: %d\n",
+                    (uint64_t)pte, pte.fragment);
+            entry.pte = pte;
+            int fragment = pte.fragment;
+            entry.logBytes = PageShift + std::min(2*9, fragment);
+            entry.vaddr <<= PageShift;
+            entry.vaddr = entry.vaddr & ~mask(entry.logBytes);
+            doEndWalk = true;
+        }
 
         // Read the pde0Addr
         part1 = ((((uint64_t)pte) >> 6) << 3);
@@ -270,20 +300,27 @@ Walker::WalkerState::walkStateMachine(PageTableEntry &pte, Addr &nextRead,
         nextState = PDE0;
         break;
       case PDE0:
-        if (pde.p) {
+        if (pde.p || (blockFragmentSize && !pte.f)) {
             DPRINTF(GPUPTWalker, "Treating PDE0 as PTE: %#016x frag: %d\n",
                     (uint64_t)pte, pte.fragment);
             entry.pte = pte;
             int fragment = pte.fragment;
             entry.logBytes = PageShift + std::min(9, fragment);
             entry.vaddr <<= PageShift;
-            entry.vaddr = entry.vaddr & ~((1 << entry.logBytes) - 1);
             entry.vaddr = entry.vaddr & ~mask(entry.logBytes);
             doEndWalk = true;
         }
         // Read the PteAddr
         part1 = ((((uint64_t)pte) >> 6) << 3);
-        part2 = offsetFunc(vaddr, 9, 0);
+        if (pte.f) {
+            // For F bit we want to use the blockFragmentSize in the previous
+            // PDE and the blockFragmentSize in this PTE for offset function.
+            part2 = offsetFunc(vaddr,
+                               blockFragmentSize,
+                               pde.blockFragmentSize);
+        } else {
+            part2 = offsetFunc(vaddr, 9, 0);
+        }
         nextRead = ((part1 + part2) << 3) & mask(48);
         DPRINTF(GPUPTWalker,
                 "Got PDE0 entry %#016x. write:%s->%#016x va:%#016x\n",
@@ -353,6 +390,7 @@ bool Walker::sendTiming(WalkerState* sending_walker, PacketPtr pkt)
         return true;
     } else {
         (void)pkt->popSenderState();
+        delete walker_state;
     }
 
     return false;

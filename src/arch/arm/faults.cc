@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2012-2014, 2016-2019, 2022 Arm Limited
+ * Copyright (c) 2010, 2012-2014, 2016-2019, 2022, 2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -44,6 +44,7 @@
 #include "arch/arm/insts/static_inst.hh"
 #include "arch/arm/interrupts.hh"
 #include "arch/arm/isa.hh"
+#include "arch/arm/regs/misc_accessors.hh"
 #include "arch/arm/self_debug.hh"
 #include "arch/arm/system.hh"
 #include "arch/arm/utility.hh"
@@ -205,106 +206,106 @@ template<> ArmFault::FaultVals ArmFaultVals<Reset>::vals(
     // Some dummy values (the reset vector has an IMPLEMENTATION DEFINED
     // location in AArch64)
     "Reset",                 0x000, 0x000, 0x000, 0x000, 0x000, MODE_SVC,
-    0, 0, 0, 0, false, true,  true,  EC_UNKNOWN
+    0, 0, 0, 0, false, true,  true,  ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<UndefinedInstruction>::vals(
     "Undefined Instruction", 0x004, 0x000, 0x200, 0x400, 0x600, MODE_UNDEFINED,
-    4, 2, 0, 0, true,  false, false, EC_UNKNOWN
+    4, 2, 0, 0, true,  false, false, ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<SupervisorCall>::vals(
     "Supervisor Call",       0x008, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    4, 2, 4, 2, true,  false, false, EC_SVC_TO_HYP
+    4, 2, 4, 2, true,  false, false, ExceptionClass::SVC_TO_HYP
 );
 template<> ArmFault::FaultVals ArmFaultVals<SecureMonitorCall>::vals(
     "Secure Monitor Call",   0x008, 0x000, 0x200, 0x400, 0x600, MODE_MON,
-    4, 4, 4, 4, false, true,  true,  EC_SMC_TO_HYP
+    4, 4, 4, 4, false, true,  true,  ExceptionClass::SMC_TO_HYP
 );
 template<> ArmFault::FaultVals ArmFaultVals<HypervisorCall>::vals(
     "Hypervisor Call",       0x008, 0x000, 0x200, 0x400, 0x600, MODE_HYP,
-    4, 4, 4, 4, true,  false, false, EC_HVC
+    4, 4, 4, 4, true,  false, false, ExceptionClass::HVC
 );
 template<> ArmFault::FaultVals ArmFaultVals<PrefetchAbort>::vals(
     "Prefetch Abort",        0x00C, 0x000, 0x200, 0x400, 0x600, MODE_ABORT,
-    4, 4, 0, 0, true,  true,  false, EC_PREFETCH_ABORT_TO_HYP
+    4, 4, 0, 0, true,  true,  false, ExceptionClass::PREFETCH_ABORT_TO_HYP
 );
 template<> ArmFault::FaultVals ArmFaultVals<DataAbort>::vals(
     "Data Abort",            0x010, 0x000, 0x200, 0x400, 0x600, MODE_ABORT,
-    8, 8, 0, 0, true,  true,  false, EC_DATA_ABORT_TO_HYP
+    8, 8, 0, 0, true,  true,  false, ExceptionClass::DATA_ABORT_TO_HYP
 );
 template<> ArmFault::FaultVals ArmFaultVals<VirtualDataAbort>::vals(
     "Virtual Data Abort",    0x010, 0x000, 0x200, 0x400, 0x600, MODE_ABORT,
-    8, 8, 0, 0, true,  true,  false, EC_INVALID
+    8, 8, 0, 0, true,  true,  false, ExceptionClass::INVALID
 );
 template<> ArmFault::FaultVals ArmFaultVals<HypervisorTrap>::vals(
     // @todo: double check these values
     "Hypervisor Trap",       0x014, 0x000, 0x200, 0x400, 0x600, MODE_HYP,
-    0, 0, 0, 0, false, false, false, EC_UNKNOWN
+    0, 0, 0, 0, false, false, false, ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<SecureMonitorTrap>::vals(
     "Secure Monitor Trap",   0x004, 0x000, 0x200, 0x400, 0x600, MODE_MON,
-    4, 2, 0, 0, false, false, false, EC_UNKNOWN
+    4, 2, 0, 0, false, false, false, ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<Interrupt>::vals(
     "IRQ",                   0x018, 0x080, 0x280, 0x480, 0x680, MODE_IRQ,
-    4, 4, 0, 0, false, true,  false, EC_UNKNOWN
+    4, 4, 0, 0, false, true,  false, ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<VirtualInterrupt>::vals(
     "Virtual IRQ",           0x018, 0x080, 0x280, 0x480, 0x680, MODE_IRQ,
-    4, 4, 0, 0, false, true,  false, EC_INVALID
+    4, 4, 0, 0, false, true,  false, ExceptionClass::INVALID
 );
 template<> ArmFault::FaultVals ArmFaultVals<FastInterrupt>::vals(
     "FIQ",                   0x01C, 0x100, 0x300, 0x500, 0x700, MODE_FIQ,
-    4, 4, 0, 0, false, true,  true,  EC_UNKNOWN
+    4, 4, 0, 0, false, true,  true,  ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<VirtualFastInterrupt>::vals(
     "Virtual FIQ",           0x01C, 0x100, 0x300, 0x500, 0x700, MODE_FIQ,
-    4, 4, 0, 0, false, true,  true,  EC_INVALID
+    4, 4, 0, 0, false, true,  true,  ExceptionClass::INVALID
 );
 template<> ArmFault::FaultVals ArmFaultVals<IllegalInstSetStateFault>::vals(
     "Illegal Inst Set State Fault",   0x004, 0x000, 0x200, 0x400, 0x600, MODE_UNDEFINED,
-    4, 2, 0, 0, true, false, false, EC_ILLEGAL_INST
+    4, 2, 0, 0, true, false, false, ExceptionClass::ILLEGAL_INST
 );
 template<> ArmFault::FaultVals ArmFaultVals<SupervisorTrap>::vals(
     // Some dummy values (SupervisorTrap is AArch64-only)
     "Supervisor Trap",   0x014, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, false, false, false, EC_UNKNOWN
+    0, 0, 0, 0, false, false, false, ExceptionClass::UNKNOWN
 );
 template<> ArmFault::FaultVals ArmFaultVals<PCAlignmentFault>::vals(
     // Some dummy values (PCAlignmentFault is AArch64-only)
     "PC Alignment Fault",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false, EC_PC_ALIGNMENT
+    0, 0, 0, 0, true, false, false, ExceptionClass::PC_ALIGNMENT
 );
 template<> ArmFault::FaultVals ArmFaultVals<SPAlignmentFault>::vals(
     // Some dummy values (SPAlignmentFault is AArch64-only)
     "SP Alignment Fault",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false, EC_STACK_PTR_ALIGNMENT
+    0, 0, 0, 0, true, false, false, ExceptionClass::STACK_PTR_ALIGNMENT
 );
 template<> ArmFault::FaultVals ArmFaultVals<SystemError>::vals(
     // Some dummy values (SError is AArch64-only)
     "SError",                0x000, 0x180, 0x380, 0x580, 0x780, MODE_SVC,
-    0, 0, 0, 0, false, true,  true,  EC_SERROR
+    0, 0, 0, 0, false, true,  true,  ExceptionClass::SERROR
 );
 template<> ArmFault::FaultVals ArmFaultVals<SoftwareBreakpoint>::vals(
     // Some dummy values (SoftwareBreakpoint is AArch64-only)
     "Software Breakpoint",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false,  EC_SOFTWARE_BREAKPOINT
+    0, 0, 0, 0, true, false, false,  ExceptionClass::SOFTWARE_BREAKPOINT
 );
 template<> ArmFault::FaultVals ArmFaultVals<HardwareBreakpoint>::vals(
     "Hardware Breakpoint",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false,  EC_HW_BREAKPOINT
+    0, 0, 0, 0, true, false, false,  ExceptionClass::HW_BREAKPOINT
 );
 template<> ArmFault::FaultVals ArmFaultVals<Watchpoint>::vals(
     "Watchpoint",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false,  EC_WATCHPOINT
+    0, 0, 0, 0, true, false, false,  ExceptionClass::WATCHPOINT
 );
 template<> ArmFault::FaultVals ArmFaultVals<SoftwareStepFault>::vals(
     "SoftwareStep",   0x000, 0x000, 0x200, 0x400, 0x600, MODE_SVC,
-    0, 0, 0, 0, true, false, false,  EC_SOFTWARE_STEP
+    0, 0, 0, 0, true, false, false,  ExceptionClass::SOFTWARE_STEP
 );
 template<> ArmFault::FaultVals ArmFaultVals<ArmSev>::vals(
     // Some dummy values
     "ArmSev Flush",          0x000, 0x000, 0x000, 0x000, 0x000, MODE_SVC,
-    0, 0, 0, 0, false, true,  true,  EC_UNKNOWN
+    0, 0, 0, 0, false, true,  true,  ExceptionClass::UNKNOWN
 );
 
 Addr
@@ -372,22 +373,6 @@ ArmFault::getSyndromeReg64() const
         return MISCREG_ESR_EL2;
       case EL3:
         return MISCREG_ESR_EL3;
-      default:
-        panic("Invalid exception level");
-        break;
-    }
-}
-
-MiscRegIndex
-ArmFault::getFaultAddrReg64() const
-{
-    switch (toEL) {
-      case EL1:
-        return MISCREG_FAR_EL1;
-      case EL2:
-        return MISCREG_FAR_EL2;
-      case EL3:
-        return MISCREG_FAR_EL3;
       default:
         panic("Invalid exception level");
         break;
@@ -503,9 +488,6 @@ ArmFault::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 void
 ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
 {
-    if (vectorCatch(tc, inst))
-        return;
-
     // ARMv7 (ARM ARM issue C B1.9)
     bool have_security = ArmSystem::haveEL(tc, EL3);
 
@@ -514,7 +496,7 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
         return;
 
     SCTLR sctlr = tc->readMiscReg(MISCREG_SCTLR);
-    SCR scr = tc->readMiscReg(MISCREG_SCR);
+    SCR scr = tc->readMiscReg(MISCREG_SCR_EL3);
     CPSR saved_cpsr = tc->readMiscReg(MISCREG_CPSR);
     saved_cpsr.nz = tc->getReg(cc_reg::Nz);
     saved_cpsr.c = tc->getReg(cc_reg::C);
@@ -533,10 +515,10 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
 
     // Ensure Secure state if initially in Monitor mode
     if (have_security && saved_cpsr.mode == MODE_MON) {
-        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
         if (scr.ns) {
             scr.ns = 0;
-            tc->setMiscRegNoEffect(MISCREG_SCR, scr);
+            tc->setMiscRegNoEffect(MISCREG_SCR_EL3, scr);
         }
     }
 
@@ -568,7 +550,6 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
         cpsr.i = 1;
     }
     cpsr.it1 = cpsr.it2 = 0;
-    cpsr.j = 0;
     cpsr.pan = span ? 1 : saved_cpsr.pan;
     tc->setMiscReg(MISCREG_CPSR, cpsr);
 
@@ -605,7 +586,7 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
         break;
       case MODE_UNDEFINED:
         tc->setMiscReg(MISCREG_SPSR_UND, saved_cpsr);
-        if (ec(tc) != EC_UNKNOWN)
+        if (ec(tc) != ExceptionClass::UNKNOWN)
             setSyndrome(tc, MISCREG_HSR);
         break;
       case MODE_HYP:
@@ -625,8 +606,6 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
     PCState pc(new_pc);
     pc.thumb(cpsr.t);
     pc.nextThumb(pc.thumb());
-    pc.jazelle(cpsr.j);
-    pc.nextJazelle(pc.jazelle());
     pc.aarch64(!cpsr.width);
     pc.nextAArch64(!cpsr.width);
     pc.illegalExec(false);
@@ -669,7 +648,6 @@ ArmFault::invoke64(ThreadContext *tc, const StaticInstPtr &inst)
         // Force some bitfields to 0
         spsr.q = 0;
         spsr.it1 = 0;
-        spsr.j = 0;
         spsr.ge = 0;
         spsr.it2 = 0;
         spsr.t = 0;
@@ -727,20 +705,6 @@ ArmFault::invoke64(ThreadContext *tc, const StaticInstPtr &inst)
     // Save exception syndrome
     if ((nextMode() != MODE_IRQ) && (nextMode() != MODE_FIQ))
         setSyndrome(tc, getSyndromeReg64());
-}
-
-bool
-ArmFault::vectorCatch(ThreadContext *tc, const StaticInstPtr &inst)
-{
-    SelfDebug *sd = ArmISA::ISA::getSelfDebug(tc);
-    VectorCatch* vc = sd->getVectorCatch(tc);
-    if (!vc->isVCMatch()) {
-        Fault fault = sd->testVectorCatch(tc, 0x0, this);
-        if (fault != NoFault)
-            fault->invoke(tc, inst);
-        return true;
-    }
-    return false;
 }
 
 ArmStaticInst *
@@ -827,7 +791,7 @@ UndefinedInstruction::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 bool
 UndefinedInstruction::routeToHyp(ThreadContext *tc) const
 {
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     return fromEL == EL2 ||
            (EL2Enabled(tc) && (fromEL == EL0) && hcr.tge);
 }
@@ -841,7 +805,7 @@ UndefinedInstruction::iss() const
         return 0;
     }
 
-    if (overrideEc == EC_INVALID)
+    if (overrideEc == ExceptionClass::INVALID)
         return issRaw;
 
     uint32_t new_iss = 0;
@@ -883,7 +847,7 @@ SupervisorCall::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 bool
 SupervisorCall::routeToHyp(ThreadContext *tc) const
 {
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     return fromEL == EL2 ||
            (EL2Enabled(tc) && fromEL == EL0 && hcr.tge);
 }
@@ -891,8 +855,8 @@ SupervisorCall::routeToHyp(ThreadContext *tc) const
 ExceptionClass
 SupervisorCall::ec(ThreadContext *tc) const
 {
-    return (overrideEc != EC_INVALID) ? overrideEc :
-        (from64 ? EC_SVC_64 : vals.ec);
+    return (overrideEc != ExceptionClass::INVALID) ? overrideEc :
+        (from64 ? ExceptionClass::SVC_64 : vals.ec);
 }
 
 uint32_t
@@ -917,9 +881,9 @@ UndefinedInstruction::ec(ThreadContext *tc) const
     // If UndefinedInstruction is routed to hypervisor,
     // HSR.EC field is 0.
     if (hypRouted)
-        return EC_UNKNOWN;
+        return ExceptionClass::UNKNOWN;
     else
-        return (overrideEc != EC_INVALID) ? overrideEc : vals.ec;
+        return (overrideEc != ExceptionClass::INVALID) ? overrideEc : vals.ec;
 }
 
 
@@ -944,13 +908,13 @@ HypervisorCall::routeToHyp(ThreadContext *tc) const
 ExceptionClass
 HypervisorCall::ec(ThreadContext *tc) const
 {
-    return from64 ? EC_HVC_64 : vals.ec;
+    return from64 ? ExceptionClass::HVC_64 : vals.ec;
 }
 
 ExceptionClass
 HypervisorTrap::ec(ThreadContext *tc) const
 {
-    return (overrideEc != EC_INVALID) ? overrideEc : vals.ec;
+    return (overrideEc != ExceptionClass::INVALID) ? overrideEc : vals.ec;
 }
 
 template<class T>
@@ -1027,7 +991,7 @@ SecureMonitorCall::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 ExceptionClass
 SecureMonitorCall::ec(ThreadContext *tc) const
 {
-    return (from64 ? EC_SMC_64 : vals.ec);
+    return (from64 ? ExceptionClass::SMC_64 : vals.ec);
 }
 
 bool
@@ -1051,45 +1015,22 @@ ExceptionClass
 SupervisorTrap::ec(ThreadContext *tc) const
 {
     if (hypRouted)
-        return EC_UNKNOWN;
+        return ExceptionClass::UNKNOWN;
     else
-        return (overrideEc != EC_INVALID) ? overrideEc : vals.ec;
+        return (overrideEc != ExceptionClass::INVALID) ? overrideEc : vals.ec;
 }
 
 ExceptionClass
 SecureMonitorTrap::ec(ThreadContext *tc) const
 {
-    return (overrideEc != EC_INVALID) ? overrideEc :
-        (from64 ? EC_SMC_64 : vals.ec);
+    return (overrideEc != ExceptionClass::INVALID) ? overrideEc :
+        (from64 ? ExceptionClass::SMC_64 : vals.ec);
 }
 
 template<class T>
 void
 AbortFault<T>::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 {
-    if (tranMethod == ArmFault::UnknownTran) {
-        tranMethod = longDescFormatInUse(tc) ? ArmFault::LpaeTran
-                                             : ArmFault::VmsaTran;
-
-        if ((tranMethod == ArmFault::VmsaTran) && this->routeToMonitor(tc)) {
-            // See ARM ARM B3-1416
-            bool override_LPAE = false;
-            TTBCR ttbcr_s = tc->readMiscReg(MISCREG_TTBCR_S);
-            [[maybe_unused]] TTBCR ttbcr_ns =
-                tc->readMiscReg(MISCREG_TTBCR_NS);
-            if (ttbcr_s.eae) {
-                override_LPAE = true;
-            } else {
-                // Unimplemented code option, not seen in testing.  May need
-                // extension according to the manual exceprt above.
-                DPRINTF(Faults, "Warning: Incomplete translation method "
-                        "override detected.\n");
-            }
-            if (override_LPAE)
-                tranMethod = ArmFault::LpaeTran;
-        }
-    }
-
     if (source == ArmFault::AsynchronousExternalAbort) {
         tc->getCpuPtr()->clearInterrupt(tc->threadId(), INT_ABT, 0);
     }
@@ -1126,23 +1067,53 @@ AbortFault<T>::invoke(ThreadContext *tc, const StaticInstPtr &inst)
             tc->setMiscReg(T::FsrIndex, fsr);
             tc->setMiscReg(T::FarIndex, faultAddr);
         }
-        DPRINTF(Faults, "Abort Fault source=%#x fsr=%#x faultAddr=%#x "\
-                "tranMethod=%#x\n", source, fsr, faultAddr, tranMethod);
+        DPRINTF(Faults, "Abort Fault source=%#x fsr=%#x faultAddr=%#x\n",
+                source, fsr, faultAddr);
     } else {  // AArch64
         // Set the FAR register.  Nothing else to do if we are in AArch64 state
         // because the syndrome register has already been set inside invoke64()
         if (stage2) {
             // stage 2 fault, set HPFAR_EL2 to the faulting IPA
             // and FAR_EL2 to the Original VA
-            tc->setMiscReg(AbortFault<T>::getFaultAddrReg64(), OVAddr);
+            misc_regs::writeRegister<misc_regs::FarAccessor>(
+                tc, OVAddr, this->toEL);
             tc->setMiscReg(MISCREG_HPFAR_EL2, bits(faultAddr, 47, 12) << 4);
 
             DPRINTF(Faults, "Abort Fault (Stage 2) VA: 0x%x IPA: 0x%x\n",
                     OVAddr, faultAddr);
         } else {
-            tc->setMiscReg(AbortFault<T>::getFaultAddrReg64(), faultAddr);
+            misc_regs::writeRegister<misc_regs::FarAccessor>(
+                tc, faultAddr, this->toEL);
         }
     }
+}
+
+template<class T>
+void
+AbortFault<T>::update(ThreadContext *tc)
+{
+    if (tranMethod == TranMethod::UnknownTran) {
+        tranMethod = longDescFormatInUse(tc) ? TranMethod::LpaeTran
+                                             : TranMethod::VmsaTran;
+
+        if ((tranMethod == TranMethod::VmsaTran) && this->routeToMonitor(tc)) {
+            // See ARM ARM B3-1416
+            bool override_LPAE = false;
+            TTBCR ttbcr_s = tc->readMiscReg(MISCREG_TTBCR_S);
+            if (ttbcr_s.eae) {
+                override_LPAE = true;
+            } else {
+                // Unimplemented code option, not seen in testing.  May need
+                // extension according to the manual exceprt above.
+                DPRINTF(Faults, "Warning: Incomplete translation method "
+                        "override detected.\n");
+            }
+            if (override_LPAE)
+                tranMethod = TranMethod::LpaeTran;
+        }
+    }
+
+    ArmFault::update(tc);
 }
 
 template<class T>
@@ -1168,8 +1139,8 @@ AbortFault<T>::getFaultStatusCode(ThreadContext *tc) const
 
     if (!this->to64) {
         // AArch32
-        assert(tranMethod != ArmFault::UnknownTran);
-        if (tranMethod == ArmFault::LpaeTran) {
+        assert(tranMethod != TranMethod::UnknownTran);
+        if (tranMethod == TranMethod::LpaeTran) {
             fsc = ArmFault::longDescFaultSources[source];
         } else {
             fsc = ArmFault::shortDescFaultSources[source];
@@ -1191,8 +1162,8 @@ AbortFault<T>::getFsr(ThreadContext *tc) const
     auto fsc = getFaultStatusCode(tc);
 
     // AArch32
-    assert(tranMethod != ArmFault::UnknownTran);
-    if (tranMethod == ArmFault::LpaeTran) {
+    assert(tranMethod != TranMethod::UnknownTran);
+    if (tranMethod == TranMethod::LpaeTran) {
         fsr.status = fsc;
         fsr.lpae   = 1;
     } else {
@@ -1212,7 +1183,7 @@ bool
 AbortFault<T>::abortDisable(ThreadContext *tc)
 {
     if (ArmSystem::haveEL(tc, EL3)) {
-        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
         return (!scr.ns || scr.aw);
     }
     return true;
@@ -1256,6 +1227,17 @@ AbortFault<T>::isMMUFault() const
 
 template<class T>
 bool
+AbortFault<T>::isExternalAbort() const
+{
+    return
+        (source == ArmFault::SynchronousExternalAbort)  ||
+        (source == ArmFault::AsynchronousExternalAbort) ||
+        ((source >= ArmFault::SynchExtAbtOnTranslTableWalkLL) &&
+         (source < ArmFault::SynchExtAbtOnTranslTableWalkLL + 4));
+}
+
+template<class T>
+bool
 AbortFault<T>::getFaultVAddr(Addr &va) const
 {
     va = (stage2 ?  OVAddr : faultAddr);
@@ -1268,9 +1250,9 @@ PrefetchAbort::ec(ThreadContext *tc) const
     if (to64) {
         // AArch64
         if (toEL == fromEL)
-            return EC_PREFETCH_ABORT_CURR_EL;
+            return ExceptionClass::PREFETCH_ABORT_CURR_EL;
         else
-            return EC_PREFETCH_ABORT_LOWER_EL;
+            return ExceptionClass::PREFETCH_ABORT_LOWER_EL;
     } else {
         // AArch32
         // Abort faults have different EC codes depending on whether
@@ -1302,12 +1284,7 @@ PrefetchAbort::iss() const
 bool
 PrefetchAbort::routeToMonitor(ThreadContext *tc) const
 {
-    SCR scr = 0;
-    if (from64)
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
-    else
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR);
-
+    SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
     return scr.ea && !isMMUFault();
 }
 
@@ -1316,7 +1293,7 @@ PrefetchAbort::routeToHyp(ThreadContext *tc) const
 {
     bool toHyp;
 
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     HDCR hdcr = tc->readMiscRegNoEffect(MISCREG_HDCR);
 
     toHyp = fromEL == EL2;
@@ -1336,9 +1313,9 @@ DataAbort::ec(ThreadContext *tc) const
                     "SystemErrors (SErrors)!");
         }
         if (toEL == fromEL)
-            return EC_DATA_ABORT_CURR_EL;
+            return ExceptionClass::DATA_ABORT_CURR_EL;
         else
-            return EC_DATA_ABORT_LOWER_EL;
+            return ExceptionClass::DATA_ABORT_LOWER_EL;
     } else {
         // AArch32
         // Abort faults have different EC codes depending on whether
@@ -1364,12 +1341,7 @@ DataAbort::il(ThreadContext *tc) const
 bool
 DataAbort::routeToMonitor(ThreadContext *tc) const
 {
-    SCR scr = 0;
-    if (from64)
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
-    else
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR);
-
+    SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
     return scr.ea && !isMMUFault();
 }
 
@@ -1378,7 +1350,7 @@ DataAbort::routeToHyp(ThreadContext *tc) const
 {
     bool toHyp;
 
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     HDCR hdcr = tc->readMiscRegNoEffect(MISCREG_HDCR);
 
     bool amo = hcr.amo;
@@ -1407,6 +1379,7 @@ DataAbort::iss() const
     iss.wnr = write;
     iss.s1ptw = s1ptw;
     iss.cm = cm;
+    iss.ea = isExternalAbort();
 
     // ISS is valid if not caused by a stage 1 page table walk, and when taken
     // to AArch64 only when directed to EL2
@@ -1457,6 +1430,9 @@ DataAbort::annotate(AnnotationIDs id, uint64_t val)
       case OFA:
         faultAddr  = val;
         break;
+      case WnR:
+        write = val;
+        break;
       // Just ignore unknown ID's
       default:
         break;
@@ -1467,27 +1443,23 @@ void
 VirtualDataAbort::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 {
     AbortFault<VirtualDataAbort>::invoke(tc, inst);
-    HCR hcr = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR hcr = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     hcr.va = 0;
-    tc->setMiscRegNoEffect(MISCREG_HCR, hcr);
+    tc->setMiscRegNoEffect(MISCREG_HCR_EL2, hcr);
 }
 
 bool
 Interrupt::routeToMonitor(ThreadContext *tc) const
 {
     assert(ArmSystem::haveEL(tc, EL3));
-    SCR scr = 0;
-    if (from64)
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
-    else
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+    SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
     return scr.irq;
 }
 
 bool
 Interrupt::routeToHyp(ThreadContext *tc) const
 {
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     return fromEL == EL2 ||
            (EL2Enabled(tc) && fromEL <= EL1 && (hcr.tge || hcr.imo));
 }
@@ -1496,7 +1468,7 @@ bool
 Interrupt::abortDisable(ThreadContext *tc)
 {
     if (ArmSystem::haveEL(tc, EL3)) {
-        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
         return (!scr.ns || scr.aw);
     }
     return true;
@@ -1509,18 +1481,14 @@ bool
 FastInterrupt::routeToMonitor(ThreadContext *tc) const
 {
     assert(ArmSystem::haveEL(tc, EL3));
-    SCR scr = 0;
-    if (from64)
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
-    else
-        scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+    SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
     return scr.fiq;
 }
 
 bool
 FastInterrupt::routeToHyp(ThreadContext *tc) const
 {
-    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR);
+    HCR  hcr  = tc->readMiscRegNoEffect(MISCREG_HCR_EL2);
     return fromEL == EL2 ||
            (EL2Enabled(tc) && fromEL <= EL1 && (hcr.tge || hcr.fmo));
 }
@@ -1529,7 +1497,7 @@ bool
 FastInterrupt::abortDisable(ThreadContext *tc)
 {
     if (ArmSystem::haveEL(tc, EL3)) {
-        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
         return (!scr.ns || scr.aw);
     }
     return true;
@@ -1541,7 +1509,7 @@ FastInterrupt::fiqDisable(ThreadContext *tc)
     if (ArmSystem::haveEL(tc, EL2)) {
         return true;
     } else if (ArmSystem::haveEL(tc, EL3)) {
-        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR);
+        SCR scr = tc->readMiscRegNoEffect(MISCREG_SCR_EL3);
         return (!scr.ns || scr.fw);
     }
     return true;
@@ -1556,7 +1524,7 @@ PCAlignmentFault::invoke(ThreadContext *tc, const StaticInstPtr &inst)
     ArmFaultVals<PCAlignmentFault>::invoke(tc, inst);
     assert(from64);
     // Set the FAR
-    tc->setMiscReg(getFaultAddrReg64(), faultPC);
+    misc_regs::writeRegister<misc_regs::FarAccessor>(tc, faultPC, toEL);
 }
 
 bool
@@ -1625,7 +1593,7 @@ SoftwareBreakpoint::routeToHyp(ThreadContext *tc) const
 ExceptionClass
 SoftwareBreakpoint::ec(ThreadContext *tc) const
 {
-    return from64 ? EC_SOFTWARE_BREAKPOINT_64 : vals.ec;
+    return from64 ? ExceptionClass::SOFTWARE_BREAKPOINT_64 : vals.ec;
 }
 
 HardwareBreakpoint::HardwareBreakpoint(Addr vaddr,  uint32_t _iss)
@@ -1646,9 +1614,9 @@ HardwareBreakpoint::ec(ThreadContext *tc) const
 {
         // AArch64
     if (toEL == fromEL)
-        return EC_HW_BREAKPOINT_CURR_EL;
+        return ExceptionClass::HW_BREAKPOINT_CURR_EL;
     else
-        return EC_HW_BREAKPOINT_LOWER_EL;
+        return ExceptionClass::HW_BREAKPOINT_LOWER_EL;
 }
 
 void
@@ -1700,8 +1668,7 @@ Watchpoint::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 {
     ArmFaultVals<Watchpoint>::invoke(tc, inst);
     // Set the FAR
-    tc->setMiscReg(getFaultAddrReg64(), vAddr);
-
+    misc_regs::writeRegister<misc_regs::FarAccessor>(tc, vAddr, toEL);
 }
 
 bool
@@ -1734,9 +1701,9 @@ Watchpoint::ec(ThreadContext *tc) const
 {
         // AArch64
         if (toEL == fromEL)
-            return EC_WATCHPOINT_CURR_EL;
+            return ExceptionClass::WATCHPOINT_CURR_EL;
         else
-            return EC_WATCHPOINT_LOWER_EL;
+            return ExceptionClass::WATCHPOINT_LOWER_EL;
 }
 
 SoftwareStepFault::SoftwareStepFault(ExtMachInst mach_inst, bool is_ldx,
@@ -1762,9 +1729,9 @@ SoftwareStepFault::ec(ThreadContext *tc) const
 {
     // AArch64
     if (toEL == fromEL)
-        return EC_SOFTWARE_STEP_CURR_EL;
+        return ExceptionClass::SOFTWARE_STEP_CURR_EL;
     else
-        return EC_SOFTWARE_STEP_LOWER_EL;
+        return ExceptionClass::SOFTWARE_STEP_LOWER_EL;
 }
 
 uint32_t

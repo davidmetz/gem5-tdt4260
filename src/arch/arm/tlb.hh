@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2013, 2016, 2019-2021 Arm Limited
+ * Copyright (c) 2010-2013, 2016, 2019-2022, 2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -46,6 +46,7 @@
 #include "arch/arm/pagetable.hh"
 #include "arch/arm/utility.hh"
 #include "arch/generic/tlb.hh"
+#include "base/cache/associative_cache.hh"
 #include "base/statistics.hh"
 #include "enums/TypeTLB.hh"
 #include "mem/request.hh"
@@ -61,20 +62,7 @@ namespace ArmISA {
 
 class TableWalker;
 class TLB;
-
-class TLBIALL;
-class ITLBIALL;
-class DTLBIALL;
-class TLBIALLEL;
-class TLBIVMALL;
-class TLBIALLN;
-class TLBIMVA;
-class ITLBIMVA;
-class DTLBIMVA;
-class TLBIASID;
-class ITLBIASID;
-class DTLBIASID;
-class TLBIMVAA;
+class TLBIOp;
 
 class TlbTestInterface
 {
@@ -92,13 +80,12 @@ class TlbTestInterface
      */
     virtual Fault translationCheck(const RequestPtr &req, bool is_priv,
                                    BaseMMU::Mode mode,
-                                   TlbEntry::DomainType domain) = 0;
+                                   DomainType domain) = 0;
 
     /**
      * Check if a page table walker access should be forced to fail.
      *
-     * @param pa Physical address the walker is accessing
-     * @param size Walker access size
+     * @param req walk request bearing a valid phys address
      * @param va Virtual address that initiated the walk
      * @param is_secure Access from secure state
      * @param is_priv Access from a privileged mode (i.e., not EL0)
@@ -106,16 +93,39 @@ class TlbTestInterface
      * @param domain Domain type
      * @param lookup_level Page table walker level
      */
-    virtual Fault walkCheck(Addr pa, Addr size, Addr va, bool is_secure,
+    virtual Fault walkCheck(const RequestPtr &walk_req,
+                            Addr va, bool is_secure,
                             Addr is_priv, BaseMMU::Mode mode,
-                            TlbEntry::DomainType domain,
+                            DomainType domain,
                             enums::ArmLookupLevel lookup_level) = 0;
 };
 
 class TLB : public BaseTLB
 {
   protected:
-    TlbEntry* table;
+    class Table : public AssociativeCache<TlbEntry>
+    {
+      public:
+        using AssociativeCache<TlbEntry>::AssociativeCache;
+        using AssociativeCache<TlbEntry>::accessEntry;
+        TlbEntry* accessEntry(const KeyType &key) override;
+        TlbEntry* findEntry(const KeyType &key) const override;
+
+        /**
+         * Invalidate the last matched entry
+         * The method has an optional param, which means: invalidate
+         * cached prev only if matches the entry argument. This is
+         * to be used for example on TLB entry invalidations
+         *
+         * @param invalid flush prev if param is nullptr, otherwise
+         *                only if prev == invalid
+         */
+        void invalidatePrev(const TlbEntry *invalid=nullptr);
+
+      private:
+        /** Last matched entry */
+        mutable TlbEntry *prev = nullptr;
+    } table;
 
     /** TLB Size */
     int size;
@@ -153,9 +163,6 @@ class TLB : public BaseTLB
         mutable statistics::Scalar writeMisses;
         mutable statistics::Scalar inserts;
         mutable statistics::Scalar flushTlb;
-        mutable statistics::Scalar flushTlbMva;
-        mutable statistics::Scalar flushTlbMvaAsid;
-        mutable statistics::Scalar flushTlbAsid;
         mutable statistics::Scalar flushedEntries;
 
         statistics::Formula readAccesses;
@@ -172,9 +179,19 @@ class TLB : public BaseTLB
     int rangeMRU; //On lookup, only move entries ahead when outside rangeMRU
     vmid_t vmid;
 
+    /** Set of observed page sizes in the TLB
+     * We update the set conservatively, therefore allowing
+     * false positives but not false negatives.
+     * This means there could be a stored page size with
+     * no matching TLB entry (e.g. it has been invalidated),
+     * but if the page size is not in the set, we are certain
+     * there is no associated TLB with that size
+     */
+    std::set<Addr> observedPageSizes;
+
   public:
     using Params = ArmTLBParams;
-    using Lookup = TlbEntry::Lookup;
+    using Lookup = TlbEntry::KeyType;
     using LookupLevel = enums::ArmLookupLevel;
 
     TLB(const Params &p);
@@ -183,7 +200,7 @@ class TLB : public BaseTLB
     /** Lookup an entry in the TLB
      * @return pointer to TLB entry if it exists
      */
-    TlbEntry *lookup(const Lookup &lookup_data);
+    TlbEntry *lookup(Lookup lookup_data);
 
     /** Lookup an entry in the TLB and in the next levels by
      * following the nextLevel pointer
@@ -208,10 +225,10 @@ class TLB : public BaseTLB
     void setVMID(vmid_t _vmid) { vmid = _vmid; }
 
     /** Insert a PTE in the current TLB */
-    void insert(TlbEntry &pte);
+    void insert(const Lookup &lookup_data, TlbEntry &pte);
 
     /** Insert a PTE in the current TLB and in the higher levels */
-    void multiInsert(TlbEntry &pte);
+    void multiInsert(const Lookup &lookup_data, TlbEntry &pte);
 
     /** Reset the entire TLB. Used for CPU switching to prevent stale
      * translations after multiple switches
@@ -219,50 +236,9 @@ class TLB : public BaseTLB
     void flushAll() override;
 
 
-    /** Reset the entire TLB
+    /** Flush TLB entries
      */
-    void flush(const TLBIALL &tlbi_op);
-    void flush(const ITLBIALL &tlbi_op);
-    void flush(const DTLBIALL &tlbi_op);
-
-    /** Implementaton of AArch64 TLBI ALLE1(IS), ALLE2(IS), ALLE3(IS)
-     * instructions
-     */
-    void flush(const TLBIALLEL &tlbi_op);
-
-    /** Implementaton of AArch64 TLBI VMALLE1(IS)/VMALLS112E1(IS)
-     * instructions
-     */
-    void flush(const TLBIVMALL &tlbi_op);
-
-    /** Remove all entries in the non secure world, depending on whether they
-     *  were allocated in hyp mode or not
-     */
-    void flush(const TLBIALLN &tlbi_op);
-
-    /** Remove any entries that match both a va and asn
-     */
-    void flush(const TLBIMVA &tlbi_op);
-    void flush(const ITLBIMVA &tlbi_op);
-    void flush(const DTLBIMVA &tlbi_op);
-
-    /** Remove any entries that match the asn
-     */
-    void flush(const TLBIASID &tlbi_op);
-    void flush(const ITLBIASID &tlbi_op);
-    void flush(const DTLBIASID &tlbi_op);
-
-    /** Remove all entries that match the va regardless of asn
-     */
-    void flush(const TLBIMVAA &tlbi_op);
-
-    Fault trickBoxCheck(const RequestPtr &req, BaseMMU::Mode mode,
-                        TlbEntry::DomainType domain);
-
-    Fault walkTrickBoxCheck(Addr pa, bool is_secure, Addr va, Addr sz,
-                            bool is_exec, bool is_write,
-                            TlbEntry::DomainType domain,
-                            LookupLevel lookup_level);
+    void flush(const TLBIOp &tlbi_op);
 
     void printTlb() const;
 
@@ -332,10 +308,6 @@ class TLB : public BaseTLB
      * data access or a data TLB entry on an instruction access:
      */
     void checkPromotion(TlbEntry *entry, BaseMMU::Mode mode);
-
-    /** Helper function looking up for a matching TLB entry
-     * Does not update stats; see lookup method instead */
-    TlbEntry *match(const Lookup &lookup_data);
 };
 
 } // namespace ArmISA

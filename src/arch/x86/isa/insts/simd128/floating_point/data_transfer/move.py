@@ -33,7 +33,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-microcode = '''
+microcode = """
 def macroop MOVAPS_XMM_M {
     # Check low address.
     ldfp xmmh, seg, sib, "DISPLACEMENT + 8", dataSize=8
@@ -276,4 +276,43 @@ def macroop MOVSD_P_XMM {
 def macroop MOVSD_XMM_XMM {
     movfp xmml, xmmlm, dataSize=8
 };
-'''
+
+def macroop EXTRACTPS_R_XMM_I {
+    extractps reg, xmmlm, "IMMEDIATE & mask(2)", size=8
+    extractps reg, xmmhm, "IMMEDIATE & mask(2)", size=8, ext=PartHi
+};
+
+def macroop EXTRACTPS_M_XMM_I {
+    extractps t1, xmmlm, "IMMEDIATE & mask(2)", size=8
+    extractps t1, xmmhm, "IMMEDIATE & mask(2)", size=8, ext=PartHi
+    st t1, seg, sib, disp
+};
+
+def macroop EXTRACTPS_P_XMM_I {
+    rdip t7
+    extractps t1, xmmlm, "IMMEDIATE & mask(2)", size=8
+    extractps t1, xmmhm, "IMMEDIATE & mask(2)", size=8, ext=PartHi
+    st t1, seg, riprel, disp
+};
+
+def macroop INSERTPS_XMM_XMM_I {
+    movfp ufp1, xmml, dataSize=8
+    insertps xmml, xmmh, xmmlm, xmmhm, "IMMEDIATE", size=8
+    insertps xmmh, ufp1, xmmlm, xmmhm, "IMMEDIATE", size=8, ext=PartHi
+};
+
+def macroop INSERTPS_XMM_M_I {
+    movfp ufp1, xmml, dataSize=8
+    ldfp ufp2, seg, sib, "DISPLACEMENT", dataSize=4
+    insertps xmml, xmmh, ufp2, ufp3, "IMMEDIATE & mask(6)", size=8
+    insertps xmmh, ufp1, ufp2, ufp3, "IMMEDIATE & mask(6)", size=8, ext=PartHi
+};
+
+def macroop INSERTPS_XMM_P_I {
+    rdip t7
+    movfp ufp1, xmml, dataSize=8
+    ldfp ufp2, seg, riprel, "DISPLACEMENT", dataSize=4
+    insertps xmml, xmmh, ufp2, ufp3, "IMMEDIATE & mask(6)", size=8
+    insertps xmmh, ufp1, ufp2, ufp3, "IMMEDIATE & mask(6)", size=8, ext=PartHi
+};
+"""

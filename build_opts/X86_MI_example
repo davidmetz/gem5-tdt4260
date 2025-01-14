@@ -1,2 +1,5 @@
-TARGET_ISA = 'x86'
-PROTOCOL = 'MI_example'
+RUBY=y
+PROTOCOL="MI_example"
+RUBY_PROTOCOL_MI_example=y
+BUILD_ISA=y
+USE_X86_ISA=y

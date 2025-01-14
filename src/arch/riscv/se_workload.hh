@@ -44,7 +44,7 @@ namespace RiscvISA
 class SEWorkload : public gem5::SEWorkload
 {
   public:
-    using Params = RiscvSEWorkloadParams;
+    PARAMS(RiscvSEWorkload);
 
     SEWorkload(const Params &p, Addr page_shift) :
         gem5::SEWorkload(p, page_shift)
@@ -54,33 +54,49 @@ class SEWorkload : public gem5::SEWorkload
     setSystem(System *sys) override
     {
         gem5::SEWorkload::setSystem(sys);
-        gdb = BaseRemoteGDB::build<RemoteGDB>(system);
+        gdb = BaseRemoteGDB::build<RemoteGDB>(
+                params().remote_gdb_port, system);
     }
 
     loader::Arch getArch() const override { return loader::Riscv64; }
 
-    //FIXME RISCV needs to handle 64 bit arguments in its 32 bit ISA.
-    using SyscallABI = RegABI64;
+    using SyscallABI64 = RegABI64;
+    using SyscallABI32 = RegABI32;
 };
 
 } // namespace RiscvISA
 
-GEM5_DEPRECATED_NAMESPACE(GuestABI, guest_abi);
 namespace guest_abi
 {
 
 template <>
-struct Result<RiscvISA::SEWorkload::SyscallABI, SyscallReturn>
+struct Result<RiscvISA::SEWorkload::SyscallABI64, SyscallReturn>
 {
     static void
     store(ThreadContext *tc, const SyscallReturn &ret)
     {
         if (ret.successful()) {
             // no error
-            tc->setIntReg(RiscvISA::ReturnValueReg, ret.returnValue());
+            tc->setReg(RiscvISA::ReturnValueReg, ret.returnValue());
         } else {
             // got an error, return details
-            tc->setIntReg(RiscvISA::ReturnValueReg, ret.encodedValue());
+            tc->setReg(RiscvISA::ReturnValueReg, ret.encodedValue());
+        }
+    }
+};
+
+template <>
+struct Result<RiscvISA::SEWorkload::SyscallABI32, SyscallReturn>
+{
+    static void
+    store(ThreadContext *tc, const SyscallReturn &ret)
+    {
+        if (ret.successful()) {
+            // no error
+            tc->setReg(RiscvISA::ReturnValueReg, sext<32>(ret.returnValue()));
+        } else {
+            // got an error, return details
+            tc->setReg(RiscvISA::ReturnValueReg, sext<32>(ret.encodedValue()));
         }
     }
 };

@@ -34,14 +34,14 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.defines import buildEnv
+from m5.objects.BaseTrafficGen import *
 from m5.SimObject import *
 
-from m5.objects.BaseTrafficGen import *
 
 class PyTrafficGen(BaseTrafficGen):
-    type = 'PyTrafficGen'
+    type = "PyTrafficGen"
     cxx_header = "cpu/testers/traffic_gen/pygen.hh"
-    cxx_class = 'gem5::PyTrafficGen'
+    cxx_class = "gem5::PyTrafficGen"
 
     @cxxMethod
     def start(self, meta_generator):
@@ -61,14 +61,17 @@ class PyTrafficGen(BaseTrafficGen):
         PyBindMethod("createDramRot"),
         PyBindMethod("createHybrid"),
         PyBindMethod("createNvm"),
-        PyBindMethod("createStrided")
+        PyBindMethod("createStrided"),
     ]
 
     @cxxMethod(override=True)
     def createTrace(self, duration, trace_file, addr_offset=0):
-        if buildEnv['HAVE_PROTOBUF']:
-            return self.getCCObject().createTrace(duration, trace_file,
-                                                  addr_offset=addr_offset)
+        if buildEnv["HAVE_PROTOBUF"]:
+            return self.getCCObject().createTrace(
+                duration, trace_file, addr_offset=addr_offset
+            )
         else:
-            raise NotImplementedError("Trace playback requires that gem5 "
-                                      "was built with protobuf support.")
+            raise NotImplementedError(
+                "Trace playback requires that gem5 "
+                "was built with protobuf support."
+            )

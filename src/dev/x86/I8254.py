@@ -24,14 +24,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.proxy import *
 from m5.objects.Device import BasicPioDevice
 from m5.objects.IntPin import IntSourcePin
+from m5.params import *
+from m5.proxy import *
+
 
 class I8254(BasicPioDevice):
-    type = 'I8254'
-    cxx_class = 'gem5::X86ISA::I8254'
+    type = "I8254"
+    cxx_class = "gem5::X86ISA::I8254"
     cxx_header = "dev/x86/i8254.hh"
 
-    int_pin = IntSourcePin('Pin to signal timer interrupts to')
+    int_pin = IntSourcePin("Pin to signal timer interrupts to")

@@ -54,13 +54,21 @@ class PM4PacketProcessor : public DmaVirtDevice
     AMDGPUDevice *gpuDevice;
     /* First graphics queue */
     PrimaryQueue pq;
+    PM4MapQueues pq_pkt;
     /* First compute queue */
     QueueDesc kiq;
+    PM4MapQueues kiq_pkt;
 
     /* All PM4 queues, indexed by VMID */
     std::unordered_map<uint16_t, PM4Queue *> queues;
     /* A map of PM4 queues based on doorbell offset */
     std::unordered_map<uint32_t, PM4Queue *> queuesMap;
+
+    int _ipId;
+    AddrRange _mmioRange;
+
+    void unmapAllQueues(bool unmap_static);
+
   public:
     PM4PacketProcessor(const PM4PacketProcessorParams &p);
 
@@ -134,12 +142,14 @@ class PM4PacketProcessor : public DmaVirtDevice
     void decodeHeader(PM4Queue *q, PM4Header header);
 
     /* Methods that implement PM4 packets */
-    void writeData(PM4Queue *q, PM4WriteData *pkt);
+    void writeData(PM4Queue *q, PM4WriteData *pkt, PM4Header header);
     void writeDataDone(PM4Queue *q, PM4WriteData *pkt, Addr addr);
     void mapQueues(PM4Queue *q, PM4MapQueues *pkt);
     void unmapQueues(PM4Queue *q, PM4UnmapQueues *pkt);
     void doneMQDWrite(Addr mqdAddr, Addr addr);
-    void mapProcess(PM4Queue *q, PM4MapProcess *pkt);
+    void mapProcess(uint32_t pasid, uint64_t ptBase, uint32_t shMemBases);
+    void mapProcessV1(PM4Queue *q, PM4MapProcess *pkt);
+    void mapProcessV2(PM4Queue *q, PM4MapProcessV2 *pkt);
     void processMQD(PM4MapQueues *pkt, PM4Queue *q, Addr addr, QueueDesc *mqd,
                     uint16_t vmid);
     void processSDMAMQD(PM4MapQueues *pkt, PM4Queue *q, Addr addr,
@@ -169,6 +179,7 @@ class PM4PacketProcessor : public DmaVirtDevice
     void setHqdPqRptrReportAddrHi(uint32_t data);
     void setHqdPqWptrPollAddr(uint32_t data);
     void setHqdPqWptrPollAddrHi(uint32_t data);
+    void setHqdPqControl(uint32_t data);
     void setHqdIbCtrl(uint32_t data);
     void setRbVmid(uint32_t data);
     void setRbCntl(uint32_t data);
@@ -183,6 +194,9 @@ class PM4PacketProcessor : public DmaVirtDevice
     void setRbDoorbellCntrl(uint32_t data);
     void setRbDoorbellRangeLo(uint32_t data);
     void setRbDoorbellRangeHi(uint32_t data);
+
+    int getIpId() const { return _ipId; }
+    AddrRange getMMIORange() const { return _mmioRange; }
 };
 
 } // namespace gem5

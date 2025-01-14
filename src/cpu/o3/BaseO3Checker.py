@@ -24,10 +24,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.CheckerCPU import CheckerCPU
+from m5.params import *
+
 
 class BaseO3Checker(CheckerCPU):
-    type = 'BaseO3Checker'
-    cxx_class = 'gem5::o3::Checker'
-    cxx_header = 'cpu/o3/checker.hh'
+    type = "BaseO3Checker"
+    cxx_class = "gem5::o3::Checker"
+    cxx_header = "cpu/o3/checker.hh"

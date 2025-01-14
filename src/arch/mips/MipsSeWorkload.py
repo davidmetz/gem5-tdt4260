@@ -23,22 +23,25 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.Workload import SEWorkload
 from m5.params import *
 
-from m5.objects.Workload import SEWorkload
 
 class MipsSEWorkload(SEWorkload):
-    type = 'MipsSEWorkload'
+    type = "MipsSEWorkload"
     cxx_header = "arch/mips/se_workload.hh"
-    cxx_class = 'gem5::MipsISA::SEWorkload'
+    cxx_class = "gem5::MipsISA::SEWorkload"
     abstract = True
 
+
 class MipsEmuLinux(MipsSEWorkload):
-    type = 'MipsEmuLinux'
+    type = "MipsEmuLinux"
     cxx_header = "arch/mips/linux/se_workload.hh"
-    cxx_class = 'gem5::MipsISA::EmuLinux'
+    cxx_class = "gem5::MipsISA::EmuLinux"
 
     @classmethod
     def _is_compatible_with(cls, obj):
-        return obj.get_arch() == 'mips' and \
-                obj.get_op_sys() in ('linux', 'unknown')
+        return obj.get_arch() == "mips" and obj.get_op_sys() in (
+            "linux",
+            "unknown",
+        )

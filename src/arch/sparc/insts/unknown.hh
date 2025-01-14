@@ -47,10 +47,12 @@ class Unknown : public SparcStaticInst
     // Constructor
     Unknown(ExtMachInst _machInst) :
             SparcStaticInst("unknown", _machInst, No_OpClass)
-    {}
+    {
+        flags[IsInvalid] = true;
+    }
 
     Fault
-    execute(ExecContext *, Trace::InstRecord *) const override
+    execute(ExecContext *, trace::InstRecord *) const override
     {
         return std::make_shared<IllegalInstruction>();
     }

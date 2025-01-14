@@ -25,16 +25,16 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from m5.defines import buildEnv
+from m5.objects.BaseCPU import BaseCPU
+from m5.objects.BranchPredictor import *
+from m5.objects.DummyChecker import DummyChecker
 from m5.params import *
 
-from m5.objects.BaseCPU import BaseCPU
-from m5.objects.DummyChecker import DummyChecker
-from m5.objects.BranchPredictor import *
 
 class BaseSimpleCPU(BaseCPU):
-    type = 'BaseSimpleCPU'
+    type = "BaseSimpleCPU"
     abstract = True
     cxx_header = "cpu/simple/base.hh"
-    cxx_class = 'gem5::BaseSimpleCPU'
+    cxx_class = "gem5::BaseSimpleCPU"
 
     branchPred = Param.BranchPredictor(NULL, "Branch Predictor")

@@ -44,15 +44,15 @@ def template ImmDeclare {{
 
       public:
         /// Constructor.
-        %(class_name)s(MachInst machInst);
-        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+        %(class_name)s(ExtMachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
         std::string generateDisassembly(Addr pc,
             const loader::SymbolTable *symtab) const override;
     };
 }};
 
 def template ImmConstructor {{
-    %(class_name)s::%(class_name)s(MachInst machInst)
+    %(class_name)s::%(class_name)s(ExtMachInst machInst)
         : %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
     {
         %(set_reg_idx_arr)s;
@@ -64,7 +64,7 @@ def template ImmConstructor {{
 def template ImmExecute {{
     Fault
     %(class_name)s::execute(
-        ExecContext *xc, Trace::InstRecord *traceData) const
+        ExecContext *xc, trace::InstRecord *traceData) const
     {
         %(op_decl)s;
         %(op_rd)s;
@@ -90,7 +90,7 @@ def template ImmExecute {{
 def template CILuiExecute {{
     Fault
     %(class_name)s::execute(
-        ExecContext *xc, Trace::InstRecord *traceData) const
+        ExecContext *xc, trace::InstRecord *traceData) const
     {
         %(op_decl)s;
         %(op_rd)s;
@@ -118,7 +118,7 @@ def template CILuiExecute {{
 def template FenceExecute {{
     Fault
     %(class_name)s::execute(
-        ExecContext *xc, Trace::InstRecord *traceData) const
+        ExecContext *xc, trace::InstRecord *traceData) const
     {
         %(op_decl)s;
         %(op_rd)s;
@@ -168,8 +168,8 @@ def template BranchDeclare {{
 
       public:
         /// Constructor.
-        %(class_name)s(MachInst machInst);
-        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+        %(class_name)s(ExtMachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
 
         std::string
         generateDisassembly(
@@ -185,7 +185,7 @@ def template BranchDeclare {{
 def template BranchExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc,
-        Trace::InstRecord *traceData) const
+        trace::InstRecord *traceData) const
     {
         %(op_decl)s;
         %(op_rd)s;
@@ -198,7 +198,9 @@ def template BranchExecute {{
     %(class_name)s::branchTarget(const PCStateBase &branch_pc) const
     {
         auto &rpc = branch_pc.as<RiscvISA::PCState>();
-        return std::make_unique<PCState>(rpc.pc() + imm);
+        std::unique_ptr<PCState> npc(dynamic_cast<PCState*>(rpc.clone()));
+        npc->set(rvSext(rpc.pc() + imm));
+        return npc;
     }
 
     std::string
@@ -226,8 +228,8 @@ def template JumpDeclare {{
 
       public:
         /// Constructor.
-        %(class_name)s(MachInst machInst);
-        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+        %(class_name)s(ExtMachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
 
         std::string
         generateDisassembly(
@@ -241,16 +243,21 @@ def template JumpDeclare {{
 }};
 
 def template JumpConstructor {{
-    %(class_name)s::%(class_name)s(MachInst machInst)
+    %(class_name)s::%(class_name)s(ExtMachInst machInst)
         : %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
     {
         %(set_reg_idx_arr)s;
         %(constructor)s;
         %(imm_code)s;
         if (QUADRANT != 0x3) {
-            // Handle "c_jr" instruction, set "IsReturn" flag if RC1 is 1 or 5
-            if (CFUNCT1 == 0 && (RC1 == 1 || RC1 == 5))
-                flags[IsReturn] = true;
+            if (COPCODE == 4) {
+                // Handle "c_jr" instruction, set "IsReturn" flag if RC1 is 1 or 5
+                if (CFUNCT1 == 0 && (RC1 == 1 || RC1 == 5))
+                    flags[IsReturn] = true;
+                // Handle "c_jalr" instruction, set IsReturn if RC1 != ra
+                if (CFUNCT1 == 1 && RC1 == 5)
+                    flags[IsReturn] = true;
+            }
         } else {
             bool rd_link = (RD == 1 || RD == 5);
             bool rs1_link = (RS1 == 1 || RS1 == 5);
@@ -260,7 +267,7 @@ def template JumpConstructor {{
                 flags[IsCall] = true;
 
             // Handle "Jalr" instruction
-            if (FUNCT3 == 0x0) {
+            if (FUNCT3 == 0x0 && OPCODE5 == 0x19) {
                 // If RD is not link and RS1 is link, then pop RAS
                 if (!rd_link && rs1_link) flags[IsReturn] = true;
                 else if (rd_link) {
@@ -286,7 +293,7 @@ def template JumpConstructor {{
 def template JumpExecute {{
     Fault
     %(class_name)s::execute(
-        ExecContext *xc, Trace::InstRecord *traceData) const
+        ExecContext *xc, trace::InstRecord *traceData) const
     {
         %(op_decl)s;
         %(op_rd)s;
@@ -300,7 +307,7 @@ def template JumpExecute {{
     {
         PCStateBase *pc_ptr = tc->pcState().clone();
         pc_ptr->as<PCState>().set(
-                (tc->readIntReg(srcRegIdx(0).index()) + imm) & ~0x1);
+            rvSext((tc->getReg(srcRegIdx(0)) + imm) & ~0x1));
         return std::unique_ptr<PCStateBase>{pc_ptr};
     }
 
@@ -309,12 +316,8 @@ def template JumpExecute {{
             Addr pc, const loader::SymbolTable *symtab) const
     {
         std::stringstream ss;
-        ss << mnemonic << ' ';
-        if (QUADRANT == 0x3)
-            ss << registerName(destRegIdx(0)) << ", "
-               << imm << "(" << registerName(srcRegIdx(0)) << ")";
-        else
-            ss << registerName(srcRegIdx(0));
+        ss << mnemonic << ' ' << registerName(destRegIdx(0)) << ", "
+           << imm << "(" << registerName(srcRegIdx(0)) << ")";
         return ss.str();
     }
 }};
@@ -322,17 +325,41 @@ def template JumpExecute {{
 def template CSRExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc,
-        Trace::InstRecord *traceData) const
+        trace::InstRecord *traceData) const
     {
-        if (!valid) {
+        // We assume a riscv instruction is always run with a riscv ISA.
+        auto isa = static_cast<RiscvISA::ISA*>(xc->tcBase()->getIsaPtr());
+        auto& csr_data = isa->getCSRDataMap();
+        MISA misa = isa->readMiscRegNoEffect(MISCREG_ISA);
+
+        auto csr_data_it = csr_data.find(csr);
+        if (csr_data_it == csr_data.end()) {
             return std::make_shared<IllegalInstFault>(
                     csprintf("Illegal CSR index %#x\n", csr), machInst);
+        }
+
+        RegIndex midx = csr_data_it->second.physIndex;
+        const std::string& csrName = csr_data_it->second.name;
+        if ((csr_data_it->second.rvTypes & (1 << machInst.rv_type)) == 0) {
+            return std::make_shared<IllegalInstFault>(
+                    csprintf("%s is not support in mode %d\n",
+                             csrName,
+                             machInst.rv_type),
+                    machInst);
+        }
+
+        MISA csr_exts = csr_data_it->second.isaExts;
+        if ((csr_exts & misa) != csr_exts) {
+            return std::make_shared<IllegalInstFault>(
+                    csprintf("%s is not support in the isa spec %d\n",
+                             csrName),
+                    machInst);
         }
 
         %(op_decl)s;
         %(op_rd)s;
 
-        RegVal data, olddata;
+        RegVal data = 0;
         auto lowestAllowedMode = (PrivilegeMode)bits(csr, 9, 8);
         auto pm = (PrivilegeMode)xc->readMiscReg(MISCREG_PRV);
         if (pm < lowestAllowedMode) {
@@ -354,54 +381,20 @@ def template CSRExecute {{
             break;
         }
 
-        if (csr == CSR_FCSR) {
-            olddata = xc->readMiscReg(MISCREG_FFLAGS) |
-                      (xc->readMiscReg(MISCREG_FRM) << FRM_OFFSET);
-        } else {
-            olddata = xc->readMiscReg(midx);
+        if (%(read_cond)s) {
+            data = rvZext(xc->readMiscReg(midx));
         }
-        auto olddata_all = olddata;
-
-        olddata &= maskVal;
-        DPRINTF(RiscvMisc, "Reading CSR %s: %#x\n", csrName, olddata);
-        data = olddata;
 
         %(code)s;
 
-        data &= maskVal;
-        if (data != olddata) {
+        if (%(write_cond)s) {
             if (bits(csr, 11, 10) == 0x3) {
                 return std::make_shared<IllegalInstFault>(
                         csprintf("CSR %s is read-only\n", csrName), machInst);
             }
-            auto newdata_all = data;
-            // We must keep those original bits not in mask.
-            // olddata and data only contain the bits visable
-            // in current privilige level.
-            newdata_all = (olddata_all & ~maskVal) | data;
             DPRINTF(RiscvMisc, "Writing %#x to CSR %s.\n",
-                    newdata_all, csrName);
-            switch (csr) {
-              case CSR_FCSR:
-                xc->setMiscReg(MISCREG_FFLAGS, bits(data, 4, 0));
-                xc->setMiscReg(MISCREG_FRM, bits(data, 7, 5));
-                break;
-              case CSR_MIP: case CSR_MIE:
-              case CSR_SIP: case CSR_SIE:
-              case CSR_UIP: case CSR_UIE:
-              case CSR_MSTATUS: case CSR_SSTATUS: case CSR_USTATUS:
-                if (newdata_all != olddata_all) {
-                    xc->setMiscReg(midx, newdata_all);
-                } else {
-                    return std::make_shared<IllegalInstFault>(
-                            "Only bits in mask are allowed to be set\n",
-                            machInst);
-                }
-                break;
-              default:
-                xc->setMiscReg(midx, data);
-                break;
-            }
+                    data, csrName);
+            xc->setMiscReg(midx, data);
         }
         %(op_wb)s;
         return NoFault;
@@ -506,8 +499,10 @@ def format SystemOp(code, *opt_flags) {{
     exec_output = BasicExecute.subst(iop)
 }};
 
-def format CSROp(code, *opt_flags) {{
-    iop = InstObjParams(name, Name, 'CSROp', code, opt_flags)
+def format CSROp(code, read_cond, write_cond, *opt_flags) {{
+    iop = InstObjParams(name, Name, 'CSROp',
+        {'code': code, 'read_cond': read_cond,
+         'write_cond': write_cond}, opt_flags)
     header_output = BasicDeclare.subst(iop)
     decoder_output = BasicConstructor.subst(iop)
     decode_block = BasicDecode.subst(iop)

@@ -24,12 +24,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
-from m5.params import *
-
 from m5.objects.CPUTracers import NativeTrace
+from m5.params import *
+from m5.SimObject import SimObject
+
 
 class X86NativeTrace(NativeTrace):
-    type = 'X86NativeTrace'
-    cxx_class = 'gem5::Trace::X86NativeTrace'
-    cxx_header = 'arch/x86/nativetrace.hh'
+    type = "X86NativeTrace"
+    cxx_class = "gem5::trace::X86NativeTrace"
+    cxx_header = "arch/x86/nativetrace.hh"

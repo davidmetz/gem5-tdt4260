@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2013, 2016, 2019-2022 Arm Limited
+ * Copyright (c) 2010-2013, 2016, 2019-2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -42,10 +42,10 @@
 #define __ARCH_ARM_MMU_HH__
 
 #include "arch/arm/page_size.hh"
-#include "arch/arm/tlb.hh"
 #include "arch/arm/utility.hh"
 #include "arch/generic/mmu.hh"
 #include "base/memoizer.hh"
+#include "base/statistics.hh"
 #include "enums/ArmLookupLevel.hh"
 
 #include "params/ArmMMU.hh"
@@ -56,23 +56,18 @@ namespace gem5
 namespace ArmISA {
 
 class TableWalker;
+class TLB;
+struct TlbEntry;
+class TLBIOp;
+class TlbTestInterface;
 
 class MMU : public BaseMMU
 {
   protected:
     using LookupLevel = enums::ArmLookupLevel;
 
-    ArmISA::TLB *
-    getDTBPtr() const
-    {
-        return static_cast<ArmISA::TLB *>(dtb);
-    }
-
-    ArmISA::TLB *
-    getITBPtr() const
-    {
-        return static_cast<ArmISA::TLB *>(itb);
-    }
+    ArmISA::TLB * getDTBPtr() const;
+    ArmISA::TLB * getITBPtr() const;
 
     TLB * getTlb(BaseMMU::Mode mode, bool stage2) const;
     TableWalker * getTableWalker(BaseMMU::Mode mode, bool stage2) const;
@@ -144,12 +139,12 @@ class MMU : public BaseMMU
             isStage2 = rhs.isStage2;
             cpsr = rhs.cpsr;
             aarch64 = rhs.aarch64;
-            aarch64EL = EL0;
+            exceptionLevel = rhs.exceptionLevel;
+            currRegime = rhs.currRegime;
             sctlr = rhs.sctlr;
             scr = rhs.scr;
             isPriv = rhs.isPriv;
-            isSecure = rhs.isSecure;
-            isHyp = rhs.isHyp;
+            securityState = rhs.securityState;
             ttbcr = rhs.ttbcr;
             asid = rhs.asid;
             vmid = rhs.vmid;
@@ -179,12 +174,12 @@ class MMU : public BaseMMU
         bool isStage2 = false;
         CPSR cpsr = 0;
         bool aarch64 = false;
-        ExceptionLevel aarch64EL = EL0;
+        ExceptionLevel exceptionLevel = EL0;
+        TranslationRegime currRegime = TranslationRegime::EL10;
         SCTLR sctlr = 0;
         SCR scr = 0;
         bool isPriv = false;
-        bool isSecure = false;
-        bool isHyp = false;
+        SecurityState securityState = SecurityState::NonSecure;
         TTBCR ttbcr = 0;
         uint16_t asid = 0;
         vmid_t vmid = 0;
@@ -270,7 +265,7 @@ class MMU : public BaseMMU
         CachedState &state);
     Fault translateMmuOn(ThreadContext *tc, const RequestPtr &req, Mode mode,
         Translation *translation, bool &delay, bool timing, bool functional,
-        Addr vaddr, ArmFault::TranMethod tranMethod,
+        Addr vaddr, TranMethod tran_method,
         CachedState &state);
 
     Fault translateFs(const RequestPtr &req, ThreadContext *tc, Mode mode,
@@ -280,6 +275,8 @@ class MMU : public BaseMMU
     Fault translateSe(const RequestPtr &req, ThreadContext *tc, Mode mode,
             Translation *translation, bool &delay, bool timing,
             CachedState &state);
+
+    Addr getValidAddr(Addr vaddr, ThreadContext *tc, Mode mode) override;
 
     Fault translateComplete(const RequestPtr &req, ThreadContext *tc,
             Translation *translation, Mode mode, ArmTranslationType tran_type,
@@ -297,73 +294,13 @@ class MMU : public BaseMMU
 
     void invalidateMiscReg();
 
-    template <typename OP>
-    void
-    flush(const OP &tlbi_op)
-    {
-        if (tlbi_op.stage1Flush()) {
-            flushStage1(tlbi_op);
-        }
+    void flush(const TLBIOp &tlbi_op);
+    void flushStage1(const TLBIOp &tlbi_op);
+    void flushStage2(const TLBIOp &tlbi_op);
+    void iflush(const TLBIOp &tlbi_op);
+    void dflush(const TLBIOp &tlbi_op);
 
-        if (tlbi_op.stage2Flush()) {
-            flushStage2(tlbi_op.makeStage2());
-        }
-    }
-
-    template <typename OP>
-    void
-    flushStage1(const OP &tlbi_op)
-    {
-        for (auto tlb : instruction) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-        for (auto tlb : data) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-        for (auto tlb : unified) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-    }
-
-    template <typename OP>
-    void
-    flushStage2(const OP &tlbi_op)
-    {
-        itbStage2->flush(tlbi_op);
-        dtbStage2->flush(tlbi_op);
-    }
-
-    template <typename OP>
-    void
-    iflush(const OP &tlbi_op)
-    {
-        for (auto tlb : instruction) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-        for (auto tlb : unified) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-    }
-
-    template <typename OP>
-    void
-    dflush(const OP &tlbi_op)
-    {
-        for (auto tlb : data) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-        for (auto tlb : unified) {
-            static_cast<TLB*>(tlb)->flush(tlbi_op);
-        }
-    }
-
-    void
-    flushAll() override
-    {
-        BaseMMU::flushAll();
-        itbStage2->flushAll();
-        dtbStage2->flushAll();
-    }
+    void flushAll() override;
 
     uint64_t
     getAttr() const
@@ -388,36 +325,38 @@ class MMU : public BaseMMU
      * a specific translation type. If the translation type doesn't
      * specify an EL, we use the current EL.
      */
-    static ExceptionLevel tranTypeEL(CPSR cpsr, ArmTranslationType type);
+    static ExceptionLevel tranTypeEL(CPSR cpsr, SCR scr, ArmTranslationType type);
+
+    static bool hasUnprivRegime(TranslationRegime regime);
 
   public:
     /** Lookup an entry in the TLB
      * @param vpn virtual address
      * @param asn context id/address space id to use
      * @param vmid The virtual machine ID used for stage 2 translation
-     * @param secure if the lookup is secure
-     * @param hyp if the lookup is done from hyp mode
+     * @param ss security state of the PE
      * @param functional if the lookup should modify state
      * @param ignore_asn if on lookup asn should be ignored
-     * @param target_el selecting the translation regime
-     * @param in_host if we are in host (EL2&0 regime)
+     * @param target_regime selecting the translation regime
      * @param mode to differentiate between read/writes/fetches.
      * @return pointer to TLB entry if it exists
      */
-    TlbEntry *lookup(Addr vpn, uint16_t asn, vmid_t vmid, bool hyp,
-                     bool secure, bool functional,
-                     bool ignore_asn, ExceptionLevel target_el,
-                     bool in_host, bool stage2, BaseMMU::Mode mode);
+    TlbEntry *lookup(Addr vpn, uint16_t asn, vmid_t vmid,
+                     SecurityState ss, bool functional,
+                     bool ignore_asn, TranslationRegime target_regime,
+                     bool stage2, BaseMMU::Mode mode);
 
     Fault getTE(TlbEntry **te, const RequestPtr &req,
                 ThreadContext *tc, Mode mode,
                 Translation *translation, bool timing, bool functional,
-                bool is_secure, ArmTranslationType tran_type,
+                SecurityState ss, PASpace ipaspace,
+                ArmTranslationType tran_type,
                 bool stage2);
     Fault getTE(TlbEntry **te, const RequestPtr &req,
                 ThreadContext *tc, Mode mode,
                 Translation *translation, bool timing, bool functional,
-                bool is_secure, ArmTranslationType tran_type,
+                SecurityState ss, PASpace ipaspace,
+                ArmTranslationType tran_type,
                 CachedState &state);
 
     Fault getResultTe(TlbEntry **te, const RequestPtr &req,
@@ -460,13 +399,7 @@ class MMU : public BaseMMU
     void setTestInterface(SimObject *ti);
 
     Fault testTranslation(const RequestPtr &req, Mode mode,
-                          TlbEntry::DomainType domain, CachedState &state);
-    Fault testWalk(Addr pa, Addr size, Addr va, bool is_secure, Mode mode,
-                   TlbEntry::DomainType domain,
-                   LookupLevel lookup_level, bool stage2);
-    Fault testWalk(Addr pa, Addr size, Addr va, bool is_secure, Mode mode,
-                   TlbEntry::DomainType domain,
-                   LookupLevel lookup_level, CachedState &state);
+                          DomainType domain, CachedState &state) const;
 
   protected:
     bool checkWalkCache() const;
@@ -476,6 +409,10 @@ class MMU : public BaseMMU
     CachedState& updateMiscReg(
         ThreadContext *tc, ArmTranslationType tran_type,
         bool stage2);
+
+    Fault testAndFinalize(const RequestPtr &req,
+                          ThreadContext *tc, Mode mode,
+                          TlbEntry *te, CachedState &state) const;
 
   protected:
     ContextID miscRegContext;

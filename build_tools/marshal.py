@@ -48,7 +48,9 @@ interpretters, and so the exact same interpretter should be used both to run
 this script, and to read in and execute the marshalled code later.
 """
 
+import locale
 import marshal
+import os
 import sys
 import zlib
 
@@ -65,18 +67,24 @@ if len(sys.argv) < 4:
     print(f"Usage: {sys.argv[0]} CPP PY MODPATH ABSPATH", file=sys.stderr)
     sys.exit(1)
 
+# Set the Python's locale settings manually based on the `LC_CTYPE`
+# environment variable
+if "LC_CTYPE" in os.environ:
+    locale.setlocale(locale.LC_CTYPE, os.environ["LC_CTYPE"])
+
 _, cpp, python, modpath, abspath = sys.argv
 
-with open(python, 'r') as f:
+with open(python) as f:
     src = f.read()
 
-compiled = compile(src, python, 'exec')
+compiled = compile(src, python, "exec")
 marshalled = marshal.dumps(compiled)
 
 compressed = zlib.compress(marshalled)
 
 code = code_formatter()
-code('''\
+code(
+    """\
 #include "python/embedded.hh"
 
 namespace gem5
@@ -84,14 +92,16 @@ namespace gem5
 namespace
 {
 
-''')
+"""
+)
 
-bytesToCppArray(code, 'embedded_module_data', compressed)
+bytesToCppArray(code, "embedded_module_data", compressed)
 
 # The name of the EmbeddedPython object doesn't matter since it's in an
 # anonymous namespace, and it's constructor takes care of installing it into a
 # global list.
-code('''
+code(
+    """
 EmbeddedPython embedded_module_info(
     "${abspath}",
     "${modpath}",
@@ -101,6 +111,7 @@ EmbeddedPython embedded_module_info(
 
 } // anonymous namespace
 } // namespace gem5
-''')
+"""
+)
 
 code.write(cpp)

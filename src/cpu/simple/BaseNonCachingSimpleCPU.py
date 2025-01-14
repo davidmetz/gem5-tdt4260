@@ -33,8 +33,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.BaseAtomicSimpleCPU import BaseAtomicSimpleCPU
+from m5.params import *
+
 
 class BaseNonCachingSimpleCPU(BaseAtomicSimpleCPU):
     """Simple CPU model based on the atomic CPU. Unlike the atomic CPU,
@@ -45,15 +46,15 @@ class BaseNonCachingSimpleCPU(BaseAtomicSimpleCPU):
 
     """
 
-    type = 'BaseNonCachingSimpleCPU'
+    type = "BaseNonCachingSimpleCPU"
     cxx_header = "cpu/simple/noncaching.hh"
-    cxx_class = 'gem5::NonCachingSimpleCPU'
+    cxx_class = "gem5::NonCachingSimpleCPU"
 
     numThreads = 1
 
     @classmethod
     def memory_mode(cls):
-        return 'atomic_noncaching'
+        return "atomic_noncaching"
 
     @classmethod
     def support_take_over(cls):

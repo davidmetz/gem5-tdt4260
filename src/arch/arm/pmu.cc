@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, 2017-2019 ARM Limited
+ * Copyright (c) 2011-2014, 2017-2019, 2022-2023 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -46,6 +46,7 @@
 #include "dev/arm/base_gic.hh"
 #include "dev/arm/generic_timer.hh"
 #include "params/ArmPMU.hh"
+#include "sim/sim_exit.hh"
 
 namespace gem5
 {
@@ -56,16 +57,19 @@ const RegVal PMU::reg_pmcr_wr_mask = 0x39;
 
 PMU::PMU(const ArmPMUParams &p)
     : SimObject(p), BaseISADevice(),
+      use64bitCounters(p.use64bitCounters),
       reg_pmcnten(0), reg_pmcr(0),
       reg_pmselr(0), reg_pminten(0), reg_pmovsr(0),
       reg_pmceid0(0),reg_pmceid1(0),
       clock_remainder(0),
       maximumCounterCount(p.eventCounters),
-      cycleCounter(*this, maximumCounterCount),
+      cycleCounter(*this, maximumCounterCount, p.use64bitCounters),
       cycleCounterEventId(p.cycleEventId),
       swIncrementEvent(nullptr),
       reg_pmcr_conf(0),
-      interrupt(nullptr)
+      interrupt(nullptr),
+      exitOnPMUControl(p.exitOnPMUControl),
+      exitOnPMUInterrupt(p.exitOnPMUInterrupt)
 {
     DPRINTF(PMUVerbose, "Initializing the PMU.\n");
 
@@ -175,7 +179,7 @@ PMU::regProbeListeners()
     // at this stage all probe configurations are done
     // counters can be configured
     for (uint32_t index = 0; index < maximumCounterCount-1; index++) {
-        counters.emplace_back(*this, index);
+        counters.emplace_back(*this, index, use64bitCounters);
     }
 
     std::shared_ptr<PMUEvent> event = getEvent(cycleCounterEventId);
@@ -240,6 +244,9 @@ PMU::setMiscReg(int misc_reg, RegVal val)
       case MISCREG_PMEVTYPER0_EL0...MISCREG_PMEVTYPER5_EL0:
         setCounterTypeRegister(misc_reg - MISCREG_PMEVTYPER0_EL0, val);
         return;
+      case MISCREG_PMEVTYPER0...MISCREG_PMEVTYPER5:
+        setCounterTypeRegister(misc_reg - MISCREG_PMEVTYPER0, val);
+        return;
 
       case MISCREG_PMCCFILTR:
       case MISCREG_PMCCFILTR_EL0:
@@ -258,6 +265,9 @@ PMU::setMiscReg(int misc_reg, RegVal val)
 
       case MISCREG_PMEVCNTR0_EL0...MISCREG_PMEVCNTR5_EL0:
         setCounterValue(misc_reg - MISCREG_PMEVCNTR0_EL0, val);
+        return;
+      case MISCREG_PMEVCNTR0...MISCREG_PMEVCNTR5:
+        setCounterValue(misc_reg - MISCREG_PMEVCNTR0, val);
         return;
 
       case MISCREG_PMXEVCNTR_EL0:
@@ -345,13 +355,13 @@ PMU::readMiscRegInt(int misc_reg)
         return reg_pmceid1 & 0xFFFFFFFF;
 
       case MISCREG_PMCCNTR_EL0:
-        return cycleCounter.getValue();
-
       case MISCREG_PMCCNTR:
-        return cycleCounter.getValue() & 0xFFFFFFFF;
+        return cycleCounter.getValue();
 
       case MISCREG_PMEVTYPER0_EL0...MISCREG_PMEVTYPER5_EL0:
         return getCounterTypeRegister(misc_reg - MISCREG_PMEVTYPER0_EL0);
+      case MISCREG_PMEVTYPER0...MISCREG_PMEVTYPER5:
+        return getCounterTypeRegister(misc_reg - MISCREG_PMEVTYPER0);
 
       case MISCREG_PMCCFILTR:
       case MISCREG_PMCCFILTR_EL0:
@@ -362,11 +372,10 @@ PMU::readMiscRegInt(int misc_reg)
       case MISCREG_PMXEVTYPER:
         return getCounterTypeRegister(reg_pmselr.sel);
 
-      case MISCREG_PMEVCNTR0_EL0...MISCREG_PMEVCNTR5_EL0: {
-            return getCounterValue(misc_reg - MISCREG_PMEVCNTR0_EL0) &
-                0xFFFFFFFF;
-
-        }
+      case MISCREG_PMEVCNTR0_EL0...MISCREG_PMEVCNTR5_EL0:
+        return getCounterValue(misc_reg - MISCREG_PMEVCNTR0_EL0) & 0xFFFFFFFF;
+      case MISCREG_PMEVCNTR0...MISCREG_PMEVCNTR5:
+        return getCounterValue(misc_reg - MISCREG_PMEVCNTR0) & 0xFFFFFFFF;
 
       case MISCREG_PMXEVCNTR_EL0:
       case MISCREG_PMXEVCNTR:
@@ -410,6 +419,21 @@ PMU::setControlReg(PMCR_t val)
     // Reset the clock remainder if divide by 64-mode is toggled.
     if (reg_pmcr.d != val.d)
         clock_remainder = 0;
+
+    // Optionally exit the simulation on various PMU control events.
+    // Exit on enable/disable takes precedence over exit on reset.
+    if (exitOnPMUControl) {
+        if (!reg_pmcr.e && val.e) {
+            inform("Exiting simulation: PMU enable detected");
+            exitSimLoop("performance counter enabled", 0);
+        } else if (reg_pmcr.e && !val.e) {
+            inform("Exiting simulation: PMU disable detected");
+            exitSimLoop("performance counter disabled", 0);
+        } else if (val.p) {
+            inform("Exiting simulation: PMU reset detected");
+            exitSimLoop("performance counter reset", 0);
+        }
+    }
 
     reg_pmcr = val & reg_pmcr_wr_mask;
     updateAllCounters();
@@ -519,8 +543,9 @@ PMU::CounterState::detach()
         sourceEvent->detachEvent(this);
         sourceEvent = nullptr;
     } else {
-        debugCounter("detaching event not currently attached"
-            " to any event\n");
+        DPRINTFS(PMUVerbose, &pmu,
+                 "detaching event %d not currently attached to any event"
+                 " [counterId = %d]\n", eventId, counterId);
     }
 }
 
@@ -577,6 +602,7 @@ PMU::updateCounter(CounterState &ctr)
         if (sourceEvent == eventMap.end()) {
             warn("Can't enable PMU counter of type '0x%x': "
                  "No such event type.\n", ctr.eventId);
+            ctr.detach();
         } else {
             ctr.attach(sourceEvent->second);
         }
@@ -659,6 +685,10 @@ PMU::setOverflowStatus(RegVal new_val)
 void
 PMU::raiseInterrupt()
 {
+    if (exitOnPMUInterrupt) {
+        inform("Exiting simulation: PMU interrupt detected");
+        exitSimLoop("performance counter interrupt", 0);
+    }
     if (interrupt) {
         DPRINTF(PMUVerbose, "Delivering PMU interrupt.\n");
         interrupt->raise();
@@ -685,6 +715,7 @@ PMU::serialize(CheckpointOut &cp) const
 {
     DPRINTF(Checkpoint, "Serializing Arm PMU\n");
 
+    SERIALIZE_SCALAR(use64bitCounters);
     SERIALIZE_SCALAR(reg_pmcr);
     SERIALIZE_SCALAR(reg_pmcnten);
     SERIALIZE_SCALAR(reg_pmselr);
@@ -705,6 +736,7 @@ PMU::unserialize(CheckpointIn &cp)
 {
     DPRINTF(Checkpoint, "Unserializing Arm PMU\n");
 
+    UNSERIALIZE_SCALAR(use64bitCounters);
     UNSERIALIZE_SCALAR(reg_pmcr);
     UNSERIALIZE_SCALAR(reg_pmcnten);
     UNSERIALIZE_SCALAR(reg_pmselr);

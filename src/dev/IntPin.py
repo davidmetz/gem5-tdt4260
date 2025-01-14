@@ -23,17 +23,22 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import Port, VectorPort
+from m5.params import (
+    Port,
+    VectorPort,
+)
 
-INT_SOURCE_ROLE = 'Int Source Pin'
-INT_SINK_ROLE = 'Int Sink Pin'
+INT_SOURCE_ROLE = "Int Source Pin"
+INT_SINK_ROLE = "Int Sink Pin"
 Port.compat(INT_SOURCE_ROLE, INT_SINK_ROLE)
+
 
 # A source pin generally represents a single pin which might connect to
 # multiple sinks.
 class IntSourcePin(VectorPort):
     def __init__(self, desc):
         super().__init__(INT_SOURCE_ROLE, desc, is_source=True)
+
 
 # A vector of source pins which might represent a bank of physical pins. Unlike
 # IntSourcePin, each source pin in VectorIntSourcePin can only connect to a
@@ -46,11 +51,13 @@ class VectorIntSourcePin(VectorPort):
     def __init__(self, desc):
         super().__init__(INT_SOURCE_ROLE, desc, is_source=True)
 
+
 # Each "physical" pin can be driven by a single source pin since there are no
 # provisions for resolving competing signals running to the same pin.
 class IntSinkPin(Port):
     def __init__(self, desc):
         super().__init__(INT_SINK_ROLE, desc)
+
 
 # A vector of sink pins represents a bank of physical pins. For instance, an
 # interrupt controller with many numbered input interrupts could represent them

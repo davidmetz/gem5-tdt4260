@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2013, 2015, 2019-2021 Arm Limited
+ * Copyright (c) 2012-2013, 2015, 2019-2021, 2023-2024 Arm Limited
  * Copyright (c) 2015 Advanced Micro Devices, Inc.
  * All rights reserved
  *
@@ -57,6 +57,7 @@
 /// application on the host machine.
 
 #if defined(__linux__)
+#include <linux/kdev_t.h>
 #include <sched.h>
 #include <sys/eventfd.h>
 #include <sys/statfs.h>
@@ -93,7 +94,6 @@
 #include "base/random.hh"
 #include "base/trace.hh"
 #include "base/types.hh"
-#include "config/the_isa.hh"
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
 #include "kern/linux/linux.hh"
@@ -149,7 +149,7 @@ SyscallReturn exitGroupFunc(SyscallDesc *desc, ThreadContext *tc, int status);
 
 /// Target set_tid_address() handler.
 SyscallReturn setTidAddressFunc(SyscallDesc *desc, ThreadContext *tc,
-                                uint64_t tidPtr);
+                                VPtr<> tidPtr);
 
 /// Target getpagesize() handler.
 SyscallReturn getpagesizeFunc(SyscallDesc *desc, ThreadContext *tc);
@@ -160,13 +160,9 @@ SyscallReturn brkFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> new_brk);
 /// Target close() handler.
 SyscallReturn closeFunc(SyscallDesc *desc, ThreadContext *tc, int tgt_fd);
 
-/// Target lseek() handler.
-SyscallReturn lseekFunc(SyscallDesc *desc, ThreadContext *tc,
-                        int tgt_fd, uint64_t offs, int whence);
-
 /// Target _llseek() handler.
 SyscallReturn _llseekFunc(SyscallDesc *desc, ThreadContext *tc,
-                          int tgt_fd, uint64_t offset_high,
+                          int tgt_fd, uint32_t offset_high,
                           uint32_t offset_low, VPtr<> result_ptr, int whence);
 
 /// Target shutdown() handler.
@@ -176,10 +172,6 @@ SyscallReturn shutdownFunc(SyscallDesc *desc, ThreadContext *tc,
 /// Target gethostname() handler.
 SyscallReturn gethostnameFunc(SyscallDesc *desc, ThreadContext *tc,
                               VPtr<> buf_ptr, int name_len);
-
-/// Target getcwd() handler.
-SyscallReturn getcwdFunc(SyscallDesc *desc, ThreadContext *tc,
-                         VPtr<> buf_ptr, unsigned long size);
 
 /// Target unlink() handler.
 SyscallReturn unlinkFunc(SyscallDesc *desc, ThreadContext *tc,
@@ -678,6 +670,66 @@ copyOutStatfsBuf(TgtStatPtr tgt, HostStatPtr host)
 #endif
 }
 
+template <typename OS, typename TgtStatPtr, typename HostStatPtr>
+void
+copyOutStatxBuf(TgtStatPtr tgt, HostStatPtr host, bool fakeTTY = false)
+{
+    constexpr ByteOrder bo = OS::byteOrder;
+
+    if (fakeTTY) {
+        tgt->stx_dev_major = 0x00;
+        tgt->stx_dev_minor = 0x0A;
+    } else {
+        tgt->stx_dev_major = host->st_dev >> 8;
+        tgt->stx_dev_minor = host->st_dev & 0xFF;
+    }
+    tgt->stx_dev_major = htog(tgt->stx_dev_major, bo);
+    tgt->stx_dev_minor = htog(tgt->stx_dev_minor, bo);
+    tgt->stx_ino = host->st_ino;
+    tgt->stx_ino = htog(tgt->stx_ino, bo);
+    tgt->stx_mode = host->st_mode;
+    if (fakeTTY) {
+      // Claim to be character device.
+      tgt->stx_mode &= ~S_IFMT;
+      tgt->stx_mode |= S_IFCHR;
+    }
+    tgt->stx_mode = htog(tgt->stx_mode, bo);
+    tgt->stx_nlink = host->st_nlink;
+    tgt->stx_nlink = htog(tgt->stx_nlink, bo);
+    tgt->stx_uid = host->st_uid;
+    tgt->stx_uid = htog(tgt->stx_uid, bo);
+    tgt->stx_gid = host->st_gid;
+    tgt->stx_gid = htog(tgt->stx_gid, bo);
+    if (fakeTTY) {
+        tgt->stx_rdev_major = 0x880d >> 8;
+        tgt->stx_rdev_minor = 0x880d & 0xFF;
+    } else {
+        tgt->stx_rdev_major = host->st_rdev >> 8;
+        tgt->stx_rdev_minor = host->st_rdev & 0xFF;
+    }
+    tgt->stx_rdev_major = htog(tgt->stx_rdev_major, bo);
+    tgt->stx_rdev_minor = htog(tgt->stx_rdev_minor, bo);
+    tgt->stx_size = host->st_size;
+    tgt->stx_size = htog(tgt->stx_size, bo);
+    tgt->stx_atimeX = host->st_atime;
+    tgt->stx_atimeX = htog(tgt->stx_atimeX, bo);
+    tgt->stx_ctimeX = host->st_ctime;
+    tgt->stx_ctimeX = htog(tgt->stx_ctimeX, bo);
+    tgt->stx_mtimeX = host->st_mtime;
+    tgt->stx_mtimeX = htog(tgt->stx_mtimeX, bo);
+    // Force the block size to be 8KB. This helps to ensure buffered io works
+    // consistently across different hosts.
+    tgt->stx_blksize = 0x2000;
+    tgt->stx_blksize = htog(tgt->stx_blksize, bo);
+    tgt->stx_blocks = host->st_blocks;
+    tgt->stx_blocks = htog(tgt->stx_blocks, bo);
+    tgt->stx_mask = 0x000007ffU; // STATX_BASIC_STATS on Linux.
+    tgt->stx_mask = htog(tgt->stx_mask, bo);
+    tgt->stx_attributes = 0;
+    tgt->stx_attributes_mask = 0;
+    tgt->stx_attributes_mask = htog(tgt->stx_attributes_mask, bo);
+}
+
 /// Target ioctl() handler.  For the most part, programs call ioctl()
 /// only to find out if their stdout is a tty, to determine whether to
 /// do line or block buffering.  We always claim that output fds are
@@ -867,7 +919,7 @@ openatFunc(SyscallDesc *desc, ThreadContext *tc,
     int sim_fd = -1;
     std::string used_path;
     std::vector<std::string> special_paths =
-            { "/proc/meminfo/", "/system/", "/platform/", "/etc/passwd",
+            { "/proc/meminfo", "/system/", "/platform/", "/etc/passwd",
               "/proc/self/maps", "/dev/urandom",
               "/sys/devices/system/cpu/online" };
     for (auto entry : special_paths) {
@@ -914,6 +966,56 @@ openFunc(SyscallDesc *desc, ThreadContext *tc,
 {
     return openatFunc<OS>(
             desc, tc, OS::TGT_AT_FDCWD, pathname, tgt_flags, mode);
+}
+
+/// Target getcwd() handler
+template <class OS>
+SyscallReturn
+getcwdFunc(SyscallDesc *desc, ThreadContext *tc,
+           VPtr<> buf_ptr, typename OS::size_t size)
+{
+    int result = 0;
+    auto p = tc->getProcessPtr();
+    BufferArg buf(buf_ptr, size);
+
+    // Is current working directory defined?
+    std::string cwd = p->tgtCwd;
+    if (!cwd.empty()) {
+        if (cwd.length() >= size) {
+            // Buffer too small
+            return -ERANGE;
+        }
+        strncpy((char *)buf.bufferPtr(), cwd.c_str(), size);
+        result = cwd.length();
+    } else {
+        if (getcwd((char *)buf.bufferPtr(), size)) {
+            result = strlen((char *)buf.bufferPtr());
+        } else {
+            result = -1;
+        }
+    }
+
+    buf.copyOut(SETranslatingPortProxy(tc));
+
+    return (result == -1) ? -errno : result;
+}
+
+/// Target lseek() handler
+template <class OS>
+SyscallReturn
+lseekFunc(SyscallDesc *desc, ThreadContext *tc,
+          int tgt_fd, typename OS::off_t offs, int whence)
+{
+    auto p = tc->getProcessPtr();
+
+    auto ffdp = std::dynamic_pointer_cast<FileFDEntry>((*p->fds)[tgt_fd]);
+    if (!ffdp)
+        return -EBADF;
+    int sim_fd = ffdp->getSimFD();
+
+    off_t result = lseek(sim_fd, offs, whence);
+
+    return (result == (off_t)-1) ? -errno : result;
 }
 
 /// Target unlinkat() handler.
@@ -1267,7 +1369,8 @@ fchmodFunc(SyscallDesc *desc, ThreadContext *tc, int tgt_fd, uint32_t mode)
 template <class OS>
 SyscallReturn
 mremapFunc(SyscallDesc *desc, ThreadContext *tc,
-        VPtr<> start, uint64_t old_length, uint64_t new_length, uint64_t flags,
+        VPtr<> start, typename OS::size_t old_length,
+        typename OS::size_t new_length, int flags,
         guest_abi::VarArgs<uint64_t> varargs)
 {
     auto p = tc->getProcessPtr();
@@ -1376,7 +1479,7 @@ statFunc(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 newfstatatFunc(SyscallDesc *desc, ThreadContext *tc, int dirfd,
-               VPtr<> pathname, VPtr<typename OS::tgt_stat> tgt_stat,
+               VPtr<> pathname, VPtr<typename OS::tgt_stat64> tgt_stat,
                int flags)
 {
     std::string path;
@@ -1406,7 +1509,7 @@ newfstatatFunc(SyscallDesc *desc, ThreadContext *tc, int dirfd,
     if (result < 0)
         return -errno;
 
-    copyOutStatBuf<OS>(tgt_stat, &host_buf);
+    copyOutStat64Buf<OS>(tgt_stat, &host_buf);
 
     return 0;
 }
@@ -1455,6 +1558,45 @@ stat64Func(SyscallDesc *desc, ThreadContext *tc,
            VPtr<> pathname, VPtr<typename OS::tgt_stat64> tgt_stat)
 {
     return fstatat64Func<OS>(desc, tc, OS::TGT_AT_FDCWD, pathname, tgt_stat);
+}
+
+/// Target statx() handler.
+template <class OS>
+SyscallReturn
+statxFunc(SyscallDesc *desc, ThreadContext *tc,
+          int dirfd, VPtr<> pathname, int flags,
+          unsigned int mask, VPtr<typename OS::tgt_statx> tgt_statx)
+{
+    std::string path;
+
+    if (!SETranslatingPortProxy(tc).tryReadString(path, pathname))
+        return -EFAULT;
+
+    if (path.empty() && !(flags & OS::TGT_AT_EMPTY_PATH))
+        return -ENOENT;
+    flags = flags & ~OS::TGT_AT_EMPTY_PATH;
+
+    warn_if(flags != 0, "statx: Flag bits %#x not supported.", flags);
+
+    // Modifying path from the directory descriptor
+    if (auto res = atSyscallPath<OS>(tc, dirfd, path); !res.successful()) {
+        return res;
+    }
+
+    auto p = tc->getProcessPtr();
+
+    // Adjust path for cwd and redirection
+    path = p->checkPathRedirect(path);
+
+    struct stat host_buf;
+    int result = stat(path.c_str(), &host_buf);
+
+    if (result < 0)
+        return -errno;
+
+    copyOutStatxBuf<OS>(tgt_statx, &host_buf);
+
+    return 0;
 }
 
 /// Target fstat64() handler.
@@ -1602,9 +1744,12 @@ statfsFunc(SyscallDesc *desc, ThreadContext *tc,
 
 template <class OS>
 SyscallReturn
-cloneFunc(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
+doClone(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
           VPtr<> ptidPtr, VPtr<> ctidPtr, VPtr<> tlsPtr)
 {
+    DPRINTF(SyscallVerbose, "Doing clone. pid: %#llx, ctid: %#llx, tls: %#llx"
+                            " flags: %#llx, stack: %#llx\n",
+            ptidPtr.addr(), ctidPtr.addr(), tlsPtr.addr(), flags, newStack);
     auto p = tc->getProcessPtr();
 
     if (((flags & OS::TGT_CLONE_SIGHAND)&& !(flags & OS::TGT_CLONE_VM)) ||
@@ -1716,6 +1861,30 @@ cloneFunc(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
 
 template <class OS>
 SyscallReturn
+clone3Func(SyscallDesc *desc, ThreadContext *tc,
+           VPtr<typename OS::tgt_clone_args> cl_args, RegVal size)
+{
+    VPtr<uint64_t> ptidPtr((Addr)cl_args->parent_tid, tc);
+    VPtr<uint64_t> ctidPtr((Addr)cl_args->child_tid, tc);
+    VPtr<uint64_t> tlsPtr((Addr)cl_args->tls, tc);
+    // Clone3 gives the stack as the *lowest* address, but clone/__clone2
+    // expects the stack parameter to be the actual stack pointer
+    uint64_t new_stack = cl_args->stack + cl_args->stack_size;
+    uint64_t flags = cl_args->flags;
+
+    return doClone<OS>(desc, tc, flags, new_stack, ptidPtr, ctidPtr, tlsPtr);
+}
+
+template <class OS>
+SyscallReturn
+cloneFunc(SyscallDesc *desc, ThreadContext *tc, RegVal flags, RegVal newStack,
+          VPtr<> ptidPtr, VPtr<> ctidPtr, VPtr<> tlsPtr)
+{
+    return doClone<OS>(desc, tc, flags, newStack, ptidPtr, ctidPtr, tlsPtr);
+}
+
+template <class OS>
+SyscallReturn
 cloneBackwardsFunc(SyscallDesc *desc, ThreadContext *tc, RegVal flags,
                    RegVal newStack, VPtr<> ptidPtr, VPtr<> tlsPtr,
                    VPtr<> ctidPtr)
@@ -1751,7 +1920,7 @@ fstatfsFunc(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 readvFunc(SyscallDesc *desc, ThreadContext *tc,
-          int tgt_fd, uint64_t tiov_base,
+          int tgt_fd, VPtr<> tiov_base,
           typename OS::size_t count)
 {
     auto p = tc->getProcessPtr();
@@ -1789,7 +1958,7 @@ readvFunc(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 writevFunc(SyscallDesc *desc, ThreadContext *tc,
-           int tgt_fd, uint64_t tiov_base,
+           int tgt_fd, VPtr<> tiov_base,
            typename OS::size_t count)
 {
     auto p = tc->getProcessPtr();
@@ -1966,7 +2135,8 @@ mmapFunc(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 pread64Func(SyscallDesc *desc, ThreadContext *tc,
-            int tgt_fd, VPtr<> bufPtr, int nbytes, int offset)
+            int tgt_fd, VPtr<> bufPtr, typename OS::size_t nbytes,
+            typename OS::off_t offset)
 {
     auto p = tc->getProcessPtr();
 
@@ -1987,7 +2157,8 @@ pread64Func(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 pwrite64Func(SyscallDesc *desc, ThreadContext *tc,
-             int tgt_fd, VPtr<> bufPtr, int nbytes, int offset)
+             int tgt_fd, VPtr<> bufPtr, typename OS::size_t nbytes,
+             typename OS::off_t offset)
 {
     auto p = tc->getProcessPtr();
 
@@ -2383,7 +2554,7 @@ tgkillFunc(SyscallDesc *desc, ThreadContext *tc, int tgid, int tid, int sig)
         }
     }
 
-    if (sig != 0 || sig != OS::TGT_SIGABRT)
+    if (sig != 0 && sig != OS::TGT_SIGABRT)
         return -EINVAL;
 
     if (tgt_proc == nullptr)
@@ -2620,7 +2791,7 @@ selectFunc(SyscallDesc *desc, ThreadContext *tc, int nfds,
 template <class OS>
 SyscallReturn
 readFunc(SyscallDesc *desc, ThreadContext *tc,
-        int tgt_fd, VPtr<> buf_ptr, int nbytes)
+        int tgt_fd, VPtr<> buf_ptr, typename OS::size_t nbytes)
 {
     auto p = tc->getProcessPtr();
 
@@ -2648,7 +2819,7 @@ readFunc(SyscallDesc *desc, ThreadContext *tc,
 template <class OS>
 SyscallReturn
 writeFunc(SyscallDesc *desc, ThreadContext *tc,
-        int tgt_fd, VPtr<> buf_ptr, int nbytes)
+        int tgt_fd, VPtr<> buf_ptr, typename OS::size_t nbytes)
 {
     auto p = tc->getProcessPtr();
 
@@ -3047,11 +3218,12 @@ getrandomFunc(SyscallDesc *desc, ThreadContext *tc,
               VPtr<> buf_ptr, typename OS::size_t count,
               unsigned int flags)
 {
+    static Random::RandomPtr se_prng = Random::genRandom();
     SETranslatingPortProxy proxy(tc);
 
     TypedBufferArg<uint8_t> buf(buf_ptr, count);
     for (int i = 0; i < count; ++i) {
-        buf[i] = gem5::random_mt.random<uint8_t>();
+        buf[i] = se_prng->random<uint8_t>();
     }
     buf.copyOut(proxy);
 

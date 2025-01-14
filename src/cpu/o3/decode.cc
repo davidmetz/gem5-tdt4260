@@ -42,7 +42,6 @@
 
 #include "arch/generic/pcstate.hh"
 #include "base/trace.hh"
-#include "config/the_isa.hh"
 #include "cpu/inst_seq.hh"
 #include "cpu/o3/dyn_inst.hh"
 #include "cpu/o3/limits.hh"
@@ -78,7 +77,7 @@ Decode::Decode(CPU *_cpu, const BaseO3CPUParams &params)
              decodeWidth, static_cast<int>(MaxWidth));
 
     // @todo: Make into a parameter
-    skidBufferMax = (fetchToDecodeDelay + 1) *  params.fetchWidth;
+    skidBufferMax = (fetchToDecodeDelay + 1) *  params.decodeWidth;
     for (int tid = 0; tid < MaxThreads; tid++) {
         stalls[tid] = {false};
         decodeStatus[tid] = Idle;
@@ -301,7 +300,7 @@ Decode::squash(const DynInstPtr &inst, ThreadID tid)
     // Using PCState::branching()  will send execution on the
     // fallthrough and this will not be caught at execution (since
     // branch was correctly predicted taken)
-    toFetch->decodeInfo[tid].branchTaken = inst->readPredTaken() |
+    toFetch->decodeInfo[tid].branchTaken = inst->readPredTaken() ||
                                            inst->isUncondCtrl();
 
     toFetch->decodeInfo[tid].squashInst = inst;

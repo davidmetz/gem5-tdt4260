@@ -55,6 +55,7 @@
 #include "base/addr_range.hh"
 #include "base/cast.hh"
 #include "base/compiler.hh"
+#include "base/extensible.hh"
 #include "base/flags.hh"
 #include "base/logging.hh"
 #include "base/printable.hh"
@@ -133,6 +134,8 @@ class MemCmd
         // compatibility
         InvalidDestError,  // packet dest field invalid
         BadAddressError,   // memory address invalid
+        ReadError,         // packet dest unable to fulfill read command
+        WriteError,        // packet dest unable to fulfill write command
         FunctionalReadError, // unable to fulfill functional read
         FunctionalWriteError, // unable to fulfill functional write
         // Fake simulator-only commands
@@ -288,7 +291,7 @@ class MemCmd
  * ultimate destination and back, possibly being conveyed by several
  * different Packets along the way.)
  */
-class Packet : public Printable
+class Packet : public Printable, public Extensible<Packet>
 {
   public:
     typedef uint32_t FlagsType;
@@ -623,7 +626,8 @@ class Packet : public Printable
     bool isWholeLineWrite(unsigned blk_size)
     {
         return (cmd == MemCmd::WriteReq || cmd == MemCmd::WriteLineReq) &&
-            getOffset(blk_size) == 0 && getSize() == blk_size;
+            getOffset(blk_size) == 0 && getSize() == blk_size &&
+            !isMaskedWrite();
     }
 
     //@{
@@ -785,6 +789,19 @@ class Packet : public Printable
         cmd = MemCmd::BadAddressError;
     }
 
+    // Command error conditions. The request is sent to target but the target
+    // cannot make it.
+    void
+    setBadCommand()
+    {
+        assert(isResponse());
+        if (isWrite()) {
+            cmd = MemCmd::WriteError;
+        } else {
+            cmd = MemCmd::ReadError;
+        }
+    }
+
     void copyError(Packet *pkt) { assert(pkt->isError()); cmd = pkt->cmd; }
 
     Addr getAddr() const { assert(flags.isSet(VALID_ADDR)); return addr; }
@@ -925,7 +942,8 @@ class Packet : public Printable
      * packet should allocate its own data.
      */
     Packet(const PacketPtr pkt, bool clear_flags, bool alloc_data)
-        :  cmd(pkt->cmd), id(pkt->id), req(pkt->req),
+        :  Extensible<Packet>(*pkt),
+           cmd(pkt->cmd), id(pkt->id), req(pkt->req),
            data(nullptr),
            addr(pkt->addr), _isSecure(pkt->_isSecure), size(pkt->size),
            bytesValid(pkt->bytesValid),
@@ -1086,6 +1104,16 @@ class Packet : public Printable
     }
 
     /**
+     * Accessor functions for the cache bypass flags. The cache bypass
+     * can specify which levels in the hierarchy to bypass. If GLC_BIT
+     * is set, the requests are globally coherent and bypass TCP.
+     * If SLC_BIT is set, then the requests are system level coherent
+     * and bypass both TCP and TCC.
+     */
+    bool isGLCSet() const { return req->isGLCSet();}
+    bool isSLCSet() const { return req->isSLCSet();}
+
+    /**
      * Check if packet corresponds to a given block-aligned address and
      * address space.
      *
@@ -1128,7 +1156,7 @@ class Packet : public Printable
   public:
     /**
      * @{
-     * @name Data accessor mehtods
+     * @name Data accessor methods
      */
 
     /**
@@ -1407,6 +1435,15 @@ class Packet : public Printable
     isCleanEviction() const
     {
         return cmd == MemCmd::CleanEvict || cmd == MemCmd::WritebackClean;
+    }
+
+    /**
+     * Is this packet a clean invalidate request, e.g., clflush/clflushopt?
+     */
+    bool
+    isCleanInvalidateRequest() const
+    {
+        return cmd == MemCmd::CleanInvalidReq;
     }
 
     bool

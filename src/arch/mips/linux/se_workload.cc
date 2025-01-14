@@ -1,4 +1,15 @@
 /*
+ * Copyright (c) 2024 Arm Limited
+ *
+ * The license below extends only to copyright in the software and shall
+ * not be construed as granting a license to any other intellectual
+ * property including but not limited to intellectual property relating
+ * to a hardware implementation of the functionality of the software
+ * licensed hereunder.  You may use the software subject to the license
+ * terms below provided that you ensure that this notice is replicated
+ * unmodified and in its entirety in all distributions of the software,
+ * modified or unmodified, in source code or in binary form.
+ *
  * Copyright 2005 The Regents of The University of Michigan
  * Copyright 2007 MIPS Technologies, Inc.
  * Copyright 2020 Google Inc.
@@ -82,7 +93,7 @@ EmuLinux::syscall(ThreadContext *tc)
     // This will move into the base SEWorkload function at some point.
     process->Process::syscall(tc);
 
-    syscallDescs.get(tc->readIntReg(2))->doSyscall(tc);
+    syscallDescs.get(tc->getReg(int_reg::V0))->doSyscall(tc);
 }
 
 /// Target uname() handler.
@@ -153,7 +164,7 @@ sys_setsysinfoFunc(SyscallDesc *desc, ThreadContext *tc, unsigned op,
 static SyscallReturn
 setThreadAreaFunc(SyscallDesc *desc, ThreadContext *tc, VPtr<> addr)
 {
-    tc->setMiscRegNoEffect(MISCREG_TP_VALUE, addr);
+    tc->setMiscRegNoEffect(misc_reg::TpValue, addr);
     return 0;
 }
 
@@ -177,7 +188,7 @@ SyscallDescTable<MipsISA::SEWorkload::SyscallABI> EmuLinux::syscallDescs = {
     { 4016, "lchown", chownFunc },
     { 4017, "break", brkFunc },
     { 4018, "unused#18" },
-    { 4019, "lseek", lseekFunc },
+    { 4019, "lseek", lseekFunc<MipsLinux> },
     { 4020, "getpid", getpidFunc },
     { 4021, "mount" },
     { 4022, "umount" },
@@ -361,7 +372,7 @@ SyscallDescTable<MipsISA::SEWorkload::SyscallABI> EmuLinux::syscallDescs = {
     { 4200, "pread64" },
     { 4201, "pwrite64" },
     { 4202, "chown" },
-    { 4203, "getcwd", getcwdFunc },
+    { 4203, "getcwd", getcwdFunc<MipsLinux> },
     { 4204, "capget" },
     { 4205, "capset" },
     { 4206, "sigalstack" },

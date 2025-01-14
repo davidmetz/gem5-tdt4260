@@ -144,7 +144,6 @@ class HBMCtrl : public MemCtrl
      */
     bool readQueueFullPC0(unsigned int pkt_count) const;
     bool readQueueFullPC1(unsigned int pkt_count) const;
-    bool readQueueFull(unsigned int pkt_count) const;
 
     /**
      * Check if the write queue partition of both pseudo
@@ -204,13 +203,18 @@ class HBMCtrl : public MemCtrl
   public:
 
     /**
-     * Is there a respondEvent for pseudo channel 1 scheduled?
+     * Is there a respondEvent scheduled?
      *
      * @return true if event is scheduled
      */
-    bool respondEventPC1Scheduled() const
+    bool respondEventScheduled(uint8_t pseudo_channel) const override
     {
-        return respondEventPC1.scheduled();
+        if (pseudo_channel == 0) {
+            return MemCtrl::respondEventScheduled(pseudo_channel);
+        } else {
+            assert(pseudo_channel == 1);
+            return respondEventPC1.scheduled();
+        }
     }
 
     /**
@@ -254,6 +258,8 @@ class HBMCtrl : public MemCtrl
     Tick recvAtomic(PacketPtr pkt) override;
     Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor) override;
     void recvFunctional(PacketPtr pkt) override;
+    void recvMemBackdoorReq(const MemBackdoorReq &req,
+            MemBackdoorPtr &_backdoor) override;
     bool recvTimingReq(PacketPtr pkt) override;
 
 };

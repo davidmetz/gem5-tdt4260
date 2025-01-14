@@ -40,6 +40,7 @@
 Test file for the util m5 exit assembly instruction.
 """
 import re
+
 from testlib import *
 
 m5_exit_regex = re.compile(
@@ -60,15 +61,14 @@ gem5_verify_config(
         config.base_dir,
         "tests",
         "gem5",
+        "m5_util",
         "configs",
         "simple_binary_run.py",
     ),
     config_args=[
         "x86-m5-exit",
-        "atomic",
         "--resource-directory",
         resource_path,
-        "x86",
     ],
-    valid_isas=(constants.vega_x86_tag,),
+    valid_isas=(constants.all_compiled_tag,),
 )

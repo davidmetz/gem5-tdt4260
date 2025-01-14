@@ -26,12 +26,13 @@
 
 import argparse
 
+
 def parse_gitcookies_line(raw):
     # if this is a line from .gitcookies, the delimiter is `\t`
-    auth_info = raw.strip().split('\t')
+    auth_info = raw.strip().split("\t")
     if len(auth_info) < 7:
         # if this is a line from auth script, the delimiter is `,`
-        auth_info = raw.strip().split(',')
+        auth_info = raw.strip().split(",")
     if len(auth_info) != 7:
         return None, None
     auth_info = auth_info[-1]
@@ -40,9 +41,10 @@ def parse_gitcookies_line(raw):
     password = auth_info[1]
     return username, password
 
+
 def parse_gitcookies(input_path):
     username_password_dict = {}
-    with open(input_path, "r") as input_stream:
+    with open(input_path) as input_stream:
         for line in input_stream:
             username, password = parse_gitcookies_line(line)
             if not username:
@@ -50,13 +52,18 @@ def parse_gitcookies(input_path):
             username_password_dict[username] = password
     return username_password_dict
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=("Extract username and password from .gitcookies"
-                     "or from the script used to write .gitcookies file"))
-    parser.add_argument("input",
-                        help = ("Path to a .gitcookies file or a file with "
-                                "a similar format"))
+        description=(
+            "Extract username and password from .gitcookies"
+            "or from the script used to write .gitcookies file"
+        )
+    )
+    parser.add_argument(
+        "input",
+        help=("Path to a .gitcookies file or a file with a similar format"),
+    )
     parser.add_argument("output", help="Path to the output file")
     args = parser.parse_args()
     username_password_dict = parse_gitcookies(args.input)

@@ -33,13 +33,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-categories = ["compare_strings",
-              "load_string",
-              "move_string",
-              "scan_string",
-              "store_string"]
+categories = [
+    "compare_strings",
+    "load_string",
+    "move_string",
+    "scan_string",
+    "store_string",
+]
 
 microcode = ""
 for category in categories:
-    exec("from . import %s as cat" % category)
+    exec(f"from . import {category} as cat")
     microcode += cat.microcode

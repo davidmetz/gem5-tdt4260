@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Arm Limited
+ * Copyright (c) 2021, 2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -66,7 +66,7 @@ class Linux : public OperatingSystem
     //@{
     /// Basic Linux types.
     typedef uint64_t size_t;
-    typedef uint64_t off_t;
+    typedef int64_t off_t;
     typedef int64_t time_t;
     typedef int64_t clock_t;
     typedef uint32_t uid_t;
@@ -256,7 +256,7 @@ class Linux : public OperatingSystem
     };
 
     // For /dev/urandom accesses
-    static Random random;
+    static Random::RandomPtr random;
 
     static int openSpecialFile(std::string path, Process *process,
                                ThreadContext *tc);
@@ -309,6 +309,7 @@ class Linux : public OperatingSystem
     static const unsigned TGT_CLONE_FS              = 0x00000200;
     static const unsigned TGT_CLONE_FILES           = 0x00000400;
     static const unsigned TGT_CLONE_SIGHAND         = 0x00000800;
+    static const unsigned TGT_CLONE_PIDFD           = 0x00001000;
     static const unsigned TGT_CLONE_PTRACE          = 0x00002000;
     static const unsigned TGT_CLONE_VFORK           = 0x00004000;
     static const unsigned TGT_CLONE_PARENT          = 0x00008000;

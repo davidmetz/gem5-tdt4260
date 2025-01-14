@@ -36,23 +36,24 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
 from m5.objects.BaseSimpleCPU import BaseSimpleCPU
 from m5.objects.SimPoint import SimPoint
 from m5.objects.TDT4260Cache import BaseCacheHierarchy
+from m5.params import *
+
 
 class BaseAtomicSimpleCPU(BaseSimpleCPU):
     """Simple CPU model executing a configurable number of
     instructions per cycle. This model uses the simplified 'atomic'
     memory mode."""
 
-    type = 'BaseAtomicSimpleCPU'
+    type = "BaseAtomicSimpleCPU"
     cxx_header = "cpu/simple/atomic.hh"
-    cxx_class = 'gem5::AtomicSimpleCPU'
+    cxx_class = "gem5::AtomicSimpleCPU"
 
     @classmethod
     def memory_mode(cls):
-        return 'atomic'
+        return "atomic"
 
     @classmethod
     def support_take_over(cls):

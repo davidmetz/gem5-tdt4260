@@ -1,5 +1,5 @@
 // -*- mode:c++ -*-
-// Copyright (c) 2010-2014, 2016-2018, 2021-2022 Arm Limited
+// Copyright (c) 2010-2014, 2016-2018, 2021-2022, 2024 Arm Limited
 // All rights reserved
 //
 // The license below extends only to copyright in the software and shall
@@ -53,10 +53,15 @@ def operand_types {{
     'sf' : 'float',
     'df' : 'double',
     'vc' : 'ArmISA::VecRegContainer',
+    'mc' : 'ArmISA::MatRegContainer',
     # For operations that are implemented as a template
     'x' : 'TPElem',
     'xs' : 'TPSElem',
+    'xs1' : 'TPS1Elem',
+    'xs2' : 'TPS2Elem',
     'xd' : 'TPDElem',
+    'srcA' : 'TPSrcAElem',
+    'srcB' : 'TPSrcBElem',
     'pc' : 'ArmISA::VecPredRegContainer',
     'pb' : 'uint8_t'
 }};
@@ -99,11 +104,15 @@ let {{
         def __init__(self, idx):
             super().__init__('pc', idx, sort_pri=srtNormal)
 
+    class MatrixReg(MatRegOp):
+        def __init__(self, idx, suffix=''):
+            super().__init__('mc', idx, 'IsMatrix', srtNormal)
+
     class IntRegNPC(IntRegOp):
         @overrideInOperand
         def regId(self):
             return f'gem5::ArmISA::couldBeZero({self.reg_spec}) ? RegId() : ' \
-                   f'RegId({self.reg_class}, {self.reg_spec})'
+                   f'{self.reg_class}[{self.reg_spec}]'
         def __init__(self, idx, ctype='uw', id=srtNormal):
             super().__init__(ctype, idx, 'IsInteger', id)
 
@@ -123,7 +132,7 @@ let {{
             else
                 xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name});
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
 
     class PIntReg(IntReg):
@@ -148,7 +157,7 @@ let {{
             else
                 xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name});
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
 
     class IntRegAIWPC(IntReg):
@@ -165,14 +174,14 @@ let {{
                 xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name});
             {"}"}
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
 
     class IntReg64(IntRegOp):
         @overrideInOperand
         def regId(self):
             return f'gem5::ArmISA::couldBeZero({self.reg_spec}) ? RegId() : ' \
-                   f'RegId({self.reg_class}, {self.reg_spec})'
+                   f'{self.reg_class}[{self.reg_spec}]'
         @overrideInOperand
         def makeRead(self):
             '''aarch64 read'''
@@ -186,7 +195,7 @@ let {{
             xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name} &
                 mask(intWidth));
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
         def __init__(self, idx, id=srtNormal):
             super().__init__('ud', idx, 'IsInteger', id)
@@ -205,7 +214,7 @@ let {{
             xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name} &
                     mask(aarch64 ? 64 : 32));
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
 
     class IntRegW64(IntReg64):
@@ -222,7 +231,7 @@ let {{
             xc->setRegOperand(this, {self.dest_reg_idx}, {self.base_name} &
                     mask(32));
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
 
     class CCReg(CCRegOp):
@@ -248,7 +257,7 @@ let {{
             xc->setMiscReg(snsBankedIndex(dest, xc->tcBase()),
                            {self.base_name});
             if (traceData)
-                traceData->setData({self.base_name});
+                traceData->setData({self.reg_class}, {self.base_name});
             '''
         def __init__(self, idx, id=srtNormal, ctype='uw'):
             super().__init__(idx, id, ctype, (None, None, 'IsControl'))
@@ -446,6 +455,8 @@ def operands {{
 
     # Predicate register operands
     'GpOp': VecPredReg('gp'),
+    'GpOp1': VecPredReg('gp1'),
+    'GpOp2': VecPredReg('gp2'),
     'POp1': VecPredReg('op1'),
     'POp2': VecPredReg('op2'),
     'PDest': VecPredReg('dest'),
@@ -454,8 +465,12 @@ def operands {{
     'FfrAux': VecPredReg('PREDREG_FFR'),
     'PUreg0': VecPredReg('PREDREG_UREG0'),
 
+    # SME ZA Register:
+    'ZA': MatrixReg('0'),
+
     #Abstracted control reg operands
     'MiscDest': CntrlReg('dest'),
+    'MiscDest2': CntrlReg('dest2'),
     'MiscOp1': CntrlReg('op1'),
     'MiscNsBankedDest': CntrlNsBankedReg('dest'),
     'MiscNsBankedOp1': CntrlNsBankedReg('op1'),
@@ -488,6 +503,7 @@ def operands {{
     'LLSCLock': CntrlRegNC('MISCREG_LOCKFLAG'),
     'Dczid' : CntrlRegNC('MISCREG_DCZID_EL0'),
     'PendingDvm': CntrlRegNC('MISCREG_TLBINEEDSYNC'),
+    'Svcr' : CntrlReg('MISCREG_SVCR'),
 
     #Register fields for microops
     'URa' : IntReg('ura'),
@@ -511,7 +527,6 @@ def operands {{
     'IWNPC': PCStateReg('instIWNPC', srtPC),
     'Thumb': PCStateReg('thumb', srtPC),
     'NextThumb': PCStateReg('nextThumb', srtMode),
-    'NextJazelle': PCStateReg('nextJazelle', srtMode),
     'NextItState': PCStateReg('nextItstate', srtMode),
     'Itstate': PCStateReg('itstate', srtMode),
     'NextAArch64': PCStateReg('nextAArch64', srtMode),

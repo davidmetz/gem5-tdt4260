@@ -90,7 +90,7 @@
 // This version is for macros which are statement-like, which frequently use
 // "do {} while (0)" to make their syntax look more like normal c++ statements.
 #  define GEM5_DEPRECATED_MACRO_STMT(name, definition, message) \
-     do {{definition;} GEM5_DEPRECATED_MACRO(name, {}, message);} while (0)
+     do {{definition;} GEM5_DEPRECATED_MACRO(name, ({}), message);} while (0)
 
 // To mark a class as deprecated in favor of a new name, add a respective
 // instance of this macro to the file that used to declare the old name.
@@ -129,6 +129,16 @@ do { [[maybe_unused]] int i[] = { 0, ((void)(__VA_ARGS__), 0)... }; } while (0)
 
 #else
 #  error "Don't know what to do for your compiler."
+#endif
+
+
+// GEM5_NO_OPTIMIZE can be used to prevent the compiler from optimizing a
+// function. Clang and GCC have different ways of doing this, so we need to
+// check which compiler is being used.
+#if defined(__clang__)
+#  define GEM5_NO_OPTIMIZE __attribute__((optnone))
+#else
+#  define GEM5_NO_OPTIMIZE __attribute__((optimize("O0")))
 #endif
 
 // When a member variable may be unused, mark it with GEM5_CLASS_VAR_USED. This

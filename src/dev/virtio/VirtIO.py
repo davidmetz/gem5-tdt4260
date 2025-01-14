@@ -35,43 +35,48 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
+from m5.objects.Device import PioDevice
+from m5.objects.PciDevice import (
+    PciDevice,
+    PciIoBar,
+)
 from m5.params import *
 from m5.proxy import *
-from m5.objects.Device import PioDevice
-from m5.objects.PciDevice import PciDevice, PciIoBar
+from m5.SimObject import SimObject
 
 
 class VirtIODeviceBase(SimObject):
-    type = 'VirtIODeviceBase'
-    cxx_header = 'dev/virtio/base.hh'
-    cxx_class = 'gem5::VirtIODeviceBase'
+    type = "VirtIODeviceBase"
+    cxx_header = "dev/virtio/base.hh"
+    cxx_class = "gem5::VirtIODeviceBase"
     abstract = True
 
     subsystem = Param.UInt8(0x00, "VirtIO subsystem ID")
 
     system = Param.System(Parent.any, "system object")
-    byte_order = Param.ByteOrder('little', "Device byte order")
+    byte_order = Param.ByteOrder("little", "Device byte order")
+
 
 class VirtIODummyDevice(VirtIODeviceBase):
-    type = 'VirtIODummyDevice'
-    cxx_header = 'dev/virtio/base.hh'
-    cxx_class = 'gem5::VirtIODummyDevice'
+    type = "VirtIODummyDevice"
+    cxx_header = "dev/virtio/base.hh"
+    cxx_class = "gem5::VirtIODummyDevice"
+
 
 class PciVirtIO(PciDevice):
-    type = 'PciVirtIO'
-    cxx_header = 'dev/virtio/pci.hh'
-    cxx_class = 'gem5::PciVirtIO'
+    type = "PciVirtIO"
+    cxx_header = "dev/virtio/pci.hh"
+    cxx_class = "gem5::PciVirtIO"
 
     vio = Param.VirtIODeviceBase(VirtIODummyDevice(), "VirtIO device")
 
     VendorID = 0x1AF4
-    SubsystemVendorID = VendorID;
+    SubsystemVendorID = VendorID
     DeviceID = 0x1000
 
-    ClassCode = 0xff # Misc device
+    ClassCode = 0xFF  # Misc device
 
     # The size is overridden by the device model.
-    BAR0 = PciIoBar(size='4B')
+    BAR0 = PciIoBar(size="4B")
 
-    InterruptPin = 0x01 # Use #INTA
+    InterruptPin = 0x01  # Use #INTA

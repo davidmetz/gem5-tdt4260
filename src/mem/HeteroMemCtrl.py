@@ -38,17 +38,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.MemCtrl import *
 from m5.params import *
 from m5.proxy import *
-from m5.objects.MemCtrl import *
 
 
 # HeteroMemCtrl controls a dram and an nvm interface
 # Both memory interfaces share the data and command bus
 class HeteroMemCtrl(MemCtrl):
-    type = 'HeteroMemCtrl'
+    type = "HeteroMemCtrl"
     cxx_header = "mem/hetero_mem_ctrl.hh"
-    cxx_class = 'gem5::memory::HeteroMemCtrl'
+    cxx_class = "gem5::memory::HeteroMemCtrl"
 
     # Interface to nvm memory media
     # The dram interface `dram` used by HeteroMemCtrl is defined in

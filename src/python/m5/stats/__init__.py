@@ -38,26 +38,31 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import m5
-
-import _m5.stats
 from m5.objects import Root
 from m5.params import isNullPointer
-from .gem5stats import JsonOutputVistor
-from m5.util import attrdict, fatal
+from m5.util import (
+    attrdict,
+    fatal,
+)
+
+import _m5.stats
 
 # Stat exports
-from _m5.stats import schedStatEvent as schedEvent
 from _m5.stats import periodicStatDump
+from _m5.stats import schedStatEvent as schedEvent
+
+from .gem5stats import JsonOutputVistor
 
 outputList = []
 
 # Dictionary of stat visitor factories populated by the _url_factory
 # visitor.
-factories = { }
+factories = {}
 
 # List of all factories. Contains tuples of (factory, schemes,
 # enabled).
 all_factories = []
+
 
 def _url_factory(schemes, enable=True):
     """Wrap a plain Python function with URL parsing helpers
@@ -101,22 +106,21 @@ def _url_factory(schemes, enable=True):
             # values into proper Python types.
             def parse_value(key, values):
                 if len(values) == 0 or (len(values) == 1 and not values[0]):
-                    fatal("%s: '%s' doesn't have a value." % (
-                        url.geturl(), key))
+                    fatal(f"{url.geturl()}: '{key}' doesn't have a value.")
                 elif len(values) > 1:
-                    fatal("%s: '%s' has multiple values." % (
-                        url.geturl(), key))
+                    fatal(f"{url.geturl()}: '{key}' has multiple values.")
                 else:
                     try:
                         return key, literal_eval(values[0])
                     except ValueError:
-                        fatal("%s: %s isn't a valid Python literal" \
-                              % (url.geturl(), values[0]))
+                        fatal(
+                            f"{url.geturl()}: {values[0]} isn't a valid Python literal"
+                        )
 
-            kwargs = dict([ parse_value(k, v) for k, v in qs.items() ])
+            kwargs = dict([parse_value(k, v) for k, v in qs.items()])
 
             try:
-                return func("%s%s" % (url.netloc, url.path), **kwargs)
+                return func(f"{url.netloc}{url.path}", **kwargs)
             except TypeError:
                 fatal("Illegal stat visitor parameter specified")
 
@@ -128,7 +132,8 @@ def _url_factory(schemes, enable=True):
 
     return decorator
 
-@_url_factory([ None, "", "text", "file", ])
+
+@_url_factory([None, "", "text", "file"])
 def _textFactory(fn, desc=True, spaces=True):
     """Output stats in text format.
 
@@ -147,7 +152,8 @@ def _textFactory(fn, desc=True, spaces=True):
 
     return _m5.stats.initText(fn, desc, spaces)
 
-@_url_factory([ "h5", ], enable=hasattr(_m5.stats, "initHDF5"))
+
+@_url_factory(["h5"], enable=hasattr(_m5.stats, "initHDF5"))
 def _hdf5Factory(fn, chunking=10, desc=True, formulas=True):
     """Output stats in HDF5 format.
 
@@ -183,6 +189,7 @@ def _hdf5Factory(fn, chunking=10, desc=True, formulas=True):
 
     return _m5.stats.initHDF5(fn, chunking, desc, formulas)
 
+
 @_url_factory(["json"])
 def _jsonFactory(fn):
     """Output stats in JSON format.
@@ -193,6 +200,7 @@ def _jsonFactory(fn):
     """
 
     return JsonOutputVistor(fn)
+
 
 def addStatVisitor(url):
     """Add a stat visitor specified using a URL string
@@ -218,12 +226,13 @@ def addStatVisitor(url):
     try:
         factory = factories[parsed.scheme]
     except KeyError:
-        fatal("Illegal stat file type '%s' specified." % parsed.scheme)
+        fatal(f"Illegal stat file type '{parsed.scheme}' specified.")
 
     if factory is None:
-        fatal("Stat type '%s' disabled at compile time" % parsed.scheme)
+        fatal(f"Stat type '{parsed.scheme}' disabled at compile time")
 
     outputList.append(factory(parsed))
+
 
 def printStatVisitorTypes():
     """List available stat visitors and their documentation"""
@@ -232,19 +241,21 @@ def printStatVisitorTypes():
 
     def print_doc(doc):
         for line in doc.splitlines():
-            print("| %s" % line)
+            print(f"| {line}")
         print()
 
-    enabled_visitors = [ x for x in all_factories if x[2] ]
+    enabled_visitors = [x for x in all_factories if x[2]]
     for factory, schemes, _ in enabled_visitors:
-        print("%s:" % ", ".join(filter(lambda x: x is not None, schemes)))
+        print(f"{', '.join(filter(lambda x: x is not None, schemes))}:")
 
         # Try to extract the factory doc string
         print_doc(inspect.getdoc(factory))
 
+
 def initSimStats():
     _m5.stats.initSimStats()
     _m5.stats.registerPythonStatsHandlers()
+
 
 def _visit_groups(visitor, root=None):
     if root is None:
@@ -253,11 +264,14 @@ def _visit_groups(visitor, root=None):
         visitor(group)
         _visit_groups(visitor, root=group)
 
+
 def _visit_stats(visitor, root=None):
     def for_each_stat(g):
         for stat in g.getStats():
             visitor(g, stat)
+
     _visit_groups(for_each_stat, root=root)
+
 
 def _bindStatHierarchy(root):
     def _bind_obj(name, obj):
@@ -268,7 +282,7 @@ def _bindStatHierarchy(root):
                 _bind_obj(name, obj[0])
             else:
                 for idx, obj in enumerate(obj):
-                    _bind_obj("{}{}".format(name, idx), obj)
+                    _bind_obj(f"{name}{idx}", obj)
         else:
             # We need this check because not all obj.getCCObject() is an
             # instance of Stat::Group. For example, sc_core::sc_module, the C++
@@ -278,32 +292,38 @@ def _bindStatHierarchy(root):
             if isinstance(obj.getCCObject(), _m5.stats.Group):
                 parent = root
                 while parent:
-                    if hasattr(parent, 'addStatGroup'):
+                    if hasattr(parent, "addStatGroup"):
                         parent.addStatGroup(name, obj.getCCObject())
                         break
-                    parent = parent.get_parent();
+                    parent = parent.get_parent()
 
             _bindStatHierarchy(obj)
 
     for name, obj in root._children.items():
         _bind_obj(name, obj)
 
+
 names = []
 stats_dict = {}
 stats_list = []
+
+
 def enable():
-    '''Enable the statistics package.  Before the statistics package is
+    """Enable the statistics package.  Before the statistics package is
     enabled, all statistics must be created and initialized and once
-    the package is enabled, no more statistics can be created.'''
+    the package is enabled, no more statistics can be created."""
 
     def check_stat(group, stat):
         if not stat.check() or not stat.baseCheck():
-            fatal("statistic '%s' (%d) was not properly initialized " \
-                  "by a regStats() function\n", stat.name, stat.id)
+            fatal(
+                "statistic '%s' (%d) was not properly initialized "
+                "by a regStats() function\n",
+                stat.name,
+                stat.id,
+            )
 
         if not (stat.flags & flags.display):
             stat.name = "__Stat%06d" % stat.id
-
 
     # Legacy stat
     global stats_list
@@ -312,21 +332,21 @@ def enable():
     for stat in stats_list:
         check_stat(None, stat)
 
-    stats_list.sort(key=lambda s: s.name.split('.'))
+    stats_list.sort(key=lambda s: s.name.split("."))
     for stat in stats_list:
         stats_dict[stat.name] = stat
         stat.enable()
-
 
     # New stats
     _visit_stats(check_stat)
     _visit_stats(lambda g, s: s.enable())
 
-    _m5.stats.enable();
+    _m5.stats.enable()
+
 
 def prepare():
-    '''Prepare all stats for data access.  This must be done before
-    dumping and serialization.'''
+    """Prepare all stats for data access.  This must be done before
+    dumping and serialization."""
 
     # Legacy stats
     for stat in stats_list:
@@ -334,6 +354,7 @@ def prepare():
 
     # New stats
     _visit_stats(lambda g, s: s.prepare())
+
 
 def _dump_to_visitor(visitor, roots=None):
     # New stats
@@ -361,12 +382,14 @@ def _dump_to_visitor(visitor, roots=None):
         for stat in stats_list:
             stat.visit(visitor)
 
+
 lastDump = 0
 # List[SimObject].
 global_dump_roots = []
 
+
 def dump(roots=None):
-    '''Dump all statistics data to the registered outputs'''
+    """Dump all statistics data to the registered outputs"""
 
     all_roots = []
     if roots is not None:
@@ -391,7 +414,7 @@ def dump(roots=None):
         # Notify new-style stats group that we are about to dump stats.
         sim_root = Root.getInstance()
         if sim_root:
-            sim_root.preDumpStats();
+            sim_root.preDumpStats()
         prepare()
 
     for output in outputList:
@@ -406,8 +429,9 @@ def dump(roots=None):
                 _dump_to_visitor(output, roots=all_roots)
                 output.end()
 
+
 def reset():
-    '''Reset all statistics to the base state'''
+    """Reset all statistics to the base state"""
 
     # call reset stats on all SimObjects
     root = Root.getInstance()
@@ -420,14 +444,17 @@ def reset():
 
     _m5.stats.processResetQueue()
 
-flags = attrdict({
-    'none'    : 0x0000,
-    'init'    : 0x0001,
-    'display' : 0x0002,
-    'total'   : 0x0010,
-    'pdf'     : 0x0020,
-    'cdf'     : 0x0040,
-    'dist'    : 0x0080,
-    'nozero'  : 0x0100,
-    'nonan'   : 0x0200,
-})
+
+flags = attrdict(
+    {
+        "none": 0x0000,
+        "init": 0x0001,
+        "display": 0x0002,
+        "total": 0x0010,
+        "pdf": 0x0020,
+        "cdf": 0x0040,
+        "dist": 0x0080,
+        "nozero": 0x0100,
+        "nonan": 0x0200,
+    }
+)

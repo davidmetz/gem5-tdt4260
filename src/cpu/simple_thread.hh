@@ -49,17 +49,15 @@
 #include "arch/generic/mmu.hh"
 #include "arch/generic/pcstate.hh"
 #include "arch/generic/tlb.hh"
-#include "arch/isa.hh"
-#include "arch/vecregs.hh"
 #include "base/logging.hh"
 #include "base/types.hh"
-#include "config/the_isa.hh"
 #include "cpu/regfile.hh"
 #include "cpu/thread_context.hh"
 #include "cpu/thread_state.hh"
 #include "debug/CCRegs.hh"
 #include "debug/FloatRegs.hh"
 #include "debug/IntRegs.hh"
+#include "debug/MatRegs.hh"
 #include "debug/VecPredRegs.hh"
 #include "debug/VecRegs.hh"
 #include "mem/htm.hh"
@@ -100,7 +98,7 @@ class SimpleThread : public ThreadState, public ThreadContext
   protected:
     std::array<RegFile, CCRegClass + 1> regFiles;
 
-    TheISA::ISA *const isa;    // one "instance" of the current ISA.
+    BaseISA *const isa;    // one "instance" of the current ISA.
 
     std::unique_ptr<PCStateBase> _pcState;
 
@@ -291,12 +289,6 @@ class SimpleThread : public ThreadState, public ThreadContext
         return isa->setMiscReg(misc_reg, val);
     }
 
-    RegId
-    flattenRegId(const RegId& regId) const override
-    {
-        return isa->flattenRegId(regId);
-    }
-
     unsigned readStCondFailures() const override { return storeCondFailures; }
 
     bool
@@ -320,7 +312,7 @@ class SimpleThread : public ThreadState, public ThreadContext
     RegVal
     getReg(const RegId &arch_reg) const override
     {
-        const RegId reg = flattenRegId(arch_reg);
+        const RegId reg = arch_reg.flatten(*isa);
 
         const RegIndex idx = reg.index();
 
@@ -333,24 +325,10 @@ class SimpleThread : public ThreadState, public ThreadContext
         return val;
     }
 
-    RegVal
-    getRegFlat(const RegId &reg) const override
-    {
-        const RegIndex idx = reg.index();
-
-        const auto &reg_file = regFiles[reg.classValue()];
-        const auto &reg_class = reg_file.regClass;
-
-        RegVal val = reg_file.reg(idx);
-        DPRINTFV(reg_class.debug(), "Reading %s reg %d as %#x.\n",
-                reg.className(), idx, val);
-        return val;
-    }
-
     void
     getReg(const RegId &arch_reg, void *val) const override
     {
-        const RegId reg = flattenRegId(arch_reg);
+        const RegId reg = arch_reg.flatten(*isa);
 
         const RegIndex idx = reg.index();
 
@@ -363,32 +341,10 @@ class SimpleThread : public ThreadState, public ThreadContext
                 reg_class.valString(val));
     }
 
-    void
-    getRegFlat(const RegId &reg, void *val) const override
-    {
-        const RegIndex idx = reg.index();
-
-        const auto &reg_file = regFiles[reg.classValue()];
-        const auto &reg_class = reg_file.regClass;
-
-        reg_file.get(idx, val);
-        DPRINTFV(reg_class.debug(), "Reading %s register %d as %s.\n",
-                reg.className(), idx, reg_class.valString(val));
-    }
-
     void *
     getWritableReg(const RegId &arch_reg) override
     {
-        const RegId reg = flattenRegId(arch_reg);
-        const RegIndex idx = reg.index();
-        auto &reg_file = regFiles[reg.classValue()];
-
-        return reg_file.ptr(idx);
-    }
-
-    void *
-    getWritableRegFlat(const RegId &reg) override
-    {
+        const RegId reg = arch_reg.flatten(*isa);
         const RegIndex idx = reg.index();
         auto &reg_file = regFiles[reg.classValue()];
 
@@ -398,7 +354,7 @@ class SimpleThread : public ThreadState, public ThreadContext
     void
     setReg(const RegId &arch_reg, RegVal val) override
     {
-        const RegId reg = flattenRegId(arch_reg);
+        const RegId reg = arch_reg.flatten(*isa);
 
         if (reg.is(InvalidRegClass))
             return;
@@ -414,25 +370,9 @@ class SimpleThread : public ThreadState, public ThreadContext
     }
 
     void
-    setRegFlat(const RegId &reg, RegVal val) override
-    {
-        if (reg.is(InvalidRegClass))
-            return;
-
-        const RegIndex idx = reg.index();
-
-        auto &reg_file = regFiles[reg.classValue()];
-        const auto &reg_class = reg_file.regClass;
-
-        DPRINTFV(reg_class.debug(), "Setting %s register %d to %#x.\n",
-                reg.className(), idx, val);
-        reg_file.reg(idx) = val;
-    }
-
-    void
     setReg(const RegId &arch_reg, const void *val) override
     {
-        const RegId reg = flattenRegId(arch_reg);
+        const RegId reg = arch_reg.flatten(*isa);
 
         const RegIndex idx = reg.index();
 
@@ -442,19 +382,6 @@ class SimpleThread : public ThreadState, public ThreadContext
         DPRINTFV(reg_class.debug(), "Setting %s register %s (%d) to %s.\n",
                 reg.className(), reg_class.regName(arch_reg), idx,
                 reg_class.valString(val));
-        reg_file.set(idx, val);
-    }
-
-    void
-    setRegFlat(const RegId &reg, const void *val) override
-    {
-        const RegIndex idx = reg.index();
-
-        auto &reg_file = regFiles[reg.classValue()];
-        const auto &reg_class = reg_file.regClass;
-
-        DPRINTFV(reg_class.debug(), "Setting %s register %d to %s.\n",
-                reg.className(), idx, reg_class.valString(val));
         reg_file.set(idx, val);
     }
 

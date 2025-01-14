@@ -37,6 +37,7 @@
 #include "base/trace.hh"
 #include "debug/AMDGPUDevice.hh"
 #include "dev/amdgpu/amdgpu_defines.hh"
+#include "dev/amdgpu/amdgpu_device.hh"
 #include "mem/packet_access.hh"
 
 namespace gem5
@@ -51,6 +52,35 @@ AMDGPUVM::AMDGPUVM()
     for (int i = 0; i < AMDGPU_VM_COUNT; ++i) {
         memset(&vmContexts[0], 0, sizeof(AMDGPUVMContext));
     }
+
+    for (int i = 0; i < NUM_MMIO_RANGES; ++i) {
+        mmioRanges[i] = AddrRange();
+    }
+}
+
+void
+AMDGPUVM::setMMIOAperture(mmio_range_t mmio_aperture, AddrRange range)
+{
+    mmioRanges[mmio_aperture] = range;
+}
+
+AddrRange
+AMDGPUVM::getMMIORange(mmio_range_t mmio_aperture)
+{
+    return mmioRanges[mmio_aperture];
+}
+
+const AddrRange&
+AMDGPUVM::getMMIOAperture(Addr offset)
+{
+    for (int i = 0; i < NUM_MMIO_RANGES; ++i) {
+        if (mmioRanges[i].contains(offset)) {
+            return mmioRanges[i];
+        }
+    }
+
+    // Default to NBIO
+    return mmioRanges[NBIO_MMIO_RANGE];
 }
 
 Addr
@@ -186,6 +216,7 @@ AMDGPUVM::serialize(CheckpointOut &cp) const
     Addr vm0PTBase = vmContext0.ptBase;
     Addr vm0PTStart = vmContext0.ptStart;
     Addr vm0PTEnd = vmContext0.ptEnd;
+    uint64_t gartTableSize;
     SERIALIZE_SCALAR(vm0PTBase);
     SERIALIZE_SCALAR(vm0PTStart);
     SERIALIZE_SCALAR(vm0PTEnd);
@@ -213,6 +244,21 @@ AMDGPUVM::serialize(CheckpointOut &cp) const
     SERIALIZE_ARRAY(ptBase, AMDGPU_VM_COUNT);
     SERIALIZE_ARRAY(ptStart, AMDGPU_VM_COUNT);
     SERIALIZE_ARRAY(ptEnd, AMDGPU_VM_COUNT);
+
+    gartTableSize = gartTable.size();
+    uint64_t* gartTableKey = new uint64_t[gartTableSize];
+    uint64_t* gartTableValue = new uint64_t[gartTableSize];
+    SERIALIZE_SCALAR(gartTableSize);
+    int i = 0;
+    for (auto it = gartTable.begin(); it != gartTable.end(); ++it) {
+        gartTableKey[i] = it->first;
+        gartTableValue[i] = it->second;
+        i++;
+    }
+    SERIALIZE_ARRAY(gartTableKey, gartTableSize);
+    SERIALIZE_ARRAY(gartTableValue, gartTableSize);
+    delete[] gartTableKey;
+    delete[] gartTableValue;
 }
 
 void
@@ -222,6 +268,7 @@ AMDGPUVM::unserialize(CheckpointIn &cp)
     Addr vm0PTBase;
     Addr vm0PTStart;
     Addr vm0PTEnd;
+    uint64_t gartTableSize, *gartTableKey, *gartTableValue;
     UNSERIALIZE_SCALAR(vm0PTBase);
     UNSERIALIZE_SCALAR(vm0PTStart);
     UNSERIALIZE_SCALAR(vm0PTEnd);
@@ -252,6 +299,16 @@ AMDGPUVM::unserialize(CheckpointIn &cp)
         vmContexts[i].ptStart = ptStart[i];
         vmContexts[i].ptEnd = ptEnd[i];
     }
+    UNSERIALIZE_SCALAR(gartTableSize);
+    gartTableKey = new uint64_t[gartTableSize];
+    gartTableValue = new uint64_t[gartTableSize];
+    UNSERIALIZE_ARRAY(gartTableKey, gartTableSize);
+    UNSERIALIZE_ARRAY(gartTableValue, gartTableSize);
+    for (uint64_t i = 0; i < gartTableSize; i++) {
+        gartTable[gartTableKey[i]] = gartTableValue[i];
+    }
+    delete[] gartTableKey;
+    delete[] gartTableValue;
 }
 
 void
@@ -331,11 +388,11 @@ AMDGPUVM::UserTranslationGen::translate(Range &range) const
     DPRINTF(AMDGPUDevice, "User tl base %#lx start %#lx walker %p\n",
             base, start, walker);
 
-    bool dummy;
+    bool system_bit;
     unsigned logBytes;
     Addr paddr = range.vaddr;
     Fault fault = walker->startFunctional(base, paddr, logBytes,
-                                          BaseMMU::Mode::Read, dummy);
+                                          BaseMMU::Mode::Read, system_bit);
     if (fault != NoFault) {
         fatal("User translation fault");
     }
@@ -343,9 +400,17 @@ AMDGPUVM::UserTranslationGen::translate(Range &range) const
     // GPU page size is variable. Use logBytes to determine size.
     const Addr page_size = 1 << logBytes;
     Addr next = roundUp(range.vaddr, page_size);
-    if (next == range.vaddr)
+    if (next == range.vaddr) {
         // We don't know the size of the next page, use default.
         next += AMDGPU_USER_PAGE_SIZE;
+    }
+
+    // If we are not in system/host memory, change the address to the MMHUB
+    // aperture. This is mapped to the same backing memory as device memory.
+    if (!system_bit) {
+        paddr += vm->getMMHUBBase();
+        assert(vm->inMMHUB(paddr));
+    }
 
     range.size = std::min(range.size, next - range.vaddr);
     range.paddr = paddr;

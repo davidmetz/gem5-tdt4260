@@ -25,19 +25,20 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+from m5.objects.ClockedObject import ClockedObject
 from m5.params import *
 from m5.proxy import *
 
-from m5.objects.ClockedObject import ClockedObject
 
 class RubyTester(ClockedObject):
-    type = 'RubyTester'
+    type = "RubyTester"
     cxx_header = "cpu/testers/rubytest/RubyTester.hh"
-    cxx_class = 'gem5::RubyTester'
+    cxx_class = "gem5::RubyTester"
 
     num_cpus = Param.Int("number of cpus / RubyPorts")
-    cpuInstDataPort = VectorRequestPort("cpu combo ports to inst & "
-                                        "data caches")
+    cpuInstDataPort = VectorRequestPort(
+        "cpu combo ports to inst & data caches"
+    )
     cpuInstPort = VectorRequestPort("cpu ports to only inst caches")
     cpuDataPort = VectorRequestPort("cpu ports to only data caches")
     checks_to_complete = Param.Int(100, "checks to complete")

@@ -24,11 +24,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.Device import BasicPioDevice
 from m5.params import *
 from m5.proxy import *
-from m5.objects.Device import BasicPioDevice
+
 
 class I8237(BasicPioDevice):
-    type = 'I8237'
-    cxx_class = 'gem5::X86ISA::I8237'
+    type = "I8237"
+    cxx_class = "gem5::X86ISA::I8237"
     cxx_header = "dev/x86/i8237.hh"

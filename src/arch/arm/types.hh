@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2012-2013, 2017-2018, 2022 Arm Limited
+ * Copyright (c) 2010, 2012-2013, 2017-2018, 2022-2023 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -268,10 +268,47 @@ namespace ArmISA
         RND_NEAREST
     };
 
+    /** Security State */
+    enum class SecurityState
+    {
+        NonSecure,
+        Secure
+    };
+
+    /** Physical Address Space */
+    enum class PASpace
+    {
+        NonSecure,
+        Secure
+    };
+
+    enum class TranMethod
+    {
+        LpaeTran,
+        VmsaTran,
+        UnknownTran
+    };
+
+    enum class DomainType : std::uint8_t
+    {
+        NoAccess = 0,
+        Client,
+        Reserved,
+        Manager
+    };
+
     enum ExceptionLevel
     {
         EL0 = 0,
         EL1,
+        EL2,
+        EL3
+    };
+
+    enum class TranslationRegime
+    {
+        EL10,
+        EL20,
         EL2,
         EL3
     };
@@ -297,57 +334,59 @@ namespace ArmISA
         MODE_MAXMODE = MODE_SYSTEM
     };
 
-    enum ExceptionClass
+    enum class ExceptionClass
     {
-        EC_INVALID                 = -1,
-        EC_UNKNOWN                 = 0x0,
-        EC_TRAPPED_WFI_WFE         = 0x1,
-        EC_TRAPPED_CP15_MCR_MRC    = 0x3,
-        EC_TRAPPED_CP15_MCRR_MRRC  = 0x4,
-        EC_TRAPPED_CP14_MCR_MRC    = 0x5,
-        EC_TRAPPED_CP14_LDC_STC    = 0x6,
-        EC_TRAPPED_HCPTR           = 0x7,
-        EC_TRAPPED_SIMD_FP         = 0x7,   // AArch64 alias
-        EC_TRAPPED_CP10_MRC_VMRS   = 0x8,
-        EC_TRAPPED_PAC             = 0x9,
-        EC_TRAPPED_BXJ             = 0xA,
-        EC_TRAPPED_CP14_MCRR_MRRC  = 0xC,
-        EC_ILLEGAL_INST            = 0xE,
-        EC_SVC_TO_HYP              = 0x11,
-        EC_SVC                     = 0x11,  // AArch64 alias
-        EC_HVC                     = 0x12,
-        EC_SMC_TO_HYP              = 0x13,
-        EC_SMC                     = 0x13,  // AArch64 alias
-        EC_SVC_64                  = 0x15,
-        EC_HVC_64                  = 0x16,
-        EC_SMC_64                  = 0x17,
-        EC_TRAPPED_MSR_MRS_64      = 0x18,
-        EC_TRAPPED_SVE             = 0x19,
-        EC_PREFETCH_ABORT_TO_HYP   = 0x20,
-        EC_PREFETCH_ABORT_LOWER_EL = 0x20,  // AArch64 alias
-        EC_PREFETCH_ABORT_FROM_HYP = 0x21,
-        EC_PREFETCH_ABORT_CURR_EL  = 0x21,  // AArch64 alias
-        EC_PC_ALIGNMENT            = 0x22,
-        EC_DATA_ABORT_TO_HYP       = 0x24,
-        EC_DATA_ABORT_LOWER_EL     = 0x24,  // AArch64 alias
-        EC_DATA_ABORT_FROM_HYP     = 0x25,
-        EC_DATA_ABORT_CURR_EL      = 0x25,  // AArch64 alias
-        EC_STACK_PTR_ALIGNMENT     = 0x26,
-        EC_FP_EXCEPTION            = 0x28,
-        EC_FP_EXCEPTION_64         = 0x2C,
-        EC_SERROR                  = 0x2F,
-        EC_HW_BREAKPOINT           = 0x30,
-        EC_HW_BREAKPOINT_LOWER_EL  = 0x30,
-        EC_HW_BREAKPOINT_CURR_EL   = 0x31,
-        EC_SOFTWARE_STEP           = 0x32,
-        EC_SOFTWARE_STEP_LOWER_EL  = 0x32,
-        EC_SOFTWARE_STEP_CURR_EL   = 0x33,
-        EC_WATCHPOINT              = 0x34,
-        EC_WATCHPOINT_LOWER_EL     = 0x34,
-        EC_WATCHPOINT_CURR_EL      = 0x35,
-        EC_SOFTWARE_BREAKPOINT     = 0x38,
-        EC_VECTOR_CATCH            = 0x3A,
-        EC_SOFTWARE_BREAKPOINT_64  = 0x3C,
+        INVALID                 = -1,
+        UNKNOWN                 = 0x0,
+        TRAPPED_WFI_WFE         = 0x1,
+        TRAPPED_CP15_MCR_MRC    = 0x3,
+        TRAPPED_CP15_MCRR_MRRC  = 0x4,
+        TRAPPED_CP14_MCR_MRC    = 0x5,
+        TRAPPED_CP14_LDC_STC    = 0x6,
+        TRAPPED_HCPTR           = 0x7,
+        TRAPPED_SIMD_FP         = 0x7,   // AArch64 alias
+        TRAPPED_CP10_MRC_VMRS   = 0x8,
+        TRAPPED_PAC             = 0x9,
+        TRAPPED_BXJ             = 0xA,
+        TRAPPED_CP14_MCRR_MRRC  = 0xC,
+        ILLEGAL_INST            = 0xE,
+        SVC_TO_HYP              = 0x11,
+        SVC                     = 0x11,  // AArch64 alias
+        HVC                     = 0x12,
+        SMC_TO_HYP              = 0x13,
+        SMC                     = 0x13,  // AArch64 alias
+        SVC_64                  = 0x15,
+        HVC_64                  = 0x16,
+        SMC_64                  = 0x17,
+        TRAPPED_MSR_MRS_64      = 0x18,
+        TRAPPED_SVE             = 0x19,
+        TRAPPED_ERET            = 0x1A,
+        TRAPPED_SME             = 0x1D,
+        PREFETCH_ABORT_TO_HYP   = 0x20,
+        PREFETCH_ABORT_LOWER_EL = 0x20,  // AArch64 alias
+        PREFETCH_ABORT_FROM_HYP = 0x21,
+        PREFETCH_ABORT_CURR_EL  = 0x21,  // AArch64 alias
+        PC_ALIGNMENT            = 0x22,
+        DATA_ABORT_TO_HYP       = 0x24,
+        DATA_ABORT_LOWER_EL     = 0x24,  // AArch64 alias
+        DATA_ABORT_FROM_HYP     = 0x25,
+        DATA_ABORT_CURR_EL      = 0x25,  // AArch64 alias
+        STACK_PTR_ALIGNMENT     = 0x26,
+        FP_EXCEPTION            = 0x28,
+        FP_EXCEPTION_64         = 0x2C,
+        SERROR                  = 0x2F,
+        HW_BREAKPOINT           = 0x30,
+        HW_BREAKPOINT_LOWER_EL  = 0x30,
+        HW_BREAKPOINT_CURR_EL   = 0x31,
+        SOFTWARE_STEP           = 0x32,
+        SOFTWARE_STEP_LOWER_EL  = 0x32,
+        SOFTWARE_STEP_CURR_EL   = 0x33,
+        WATCHPOINT              = 0x34,
+        WATCHPOINT_LOWER_EL     = 0x34,
+        WATCHPOINT_CURR_EL      = 0x35,
+        SOFTWARE_BREAKPOINT     = 0x38,
+        VECTOR_CATCH            = 0x3A,
+        SOFTWARE_BREAKPOINT_64  = 0x3C,
     };
 
     /**
@@ -460,6 +499,39 @@ namespace ArmISA
         }
     }
 
+    static inline const char*
+    regimeToStr(TranslationRegime regime)
+    {
+        switch (regime) {
+          case TranslationRegime::EL10:
+            return "EL10";
+          case TranslationRegime::EL20:
+            return "EL20";
+          case TranslationRegime::EL2:
+            return "EL2";
+          case TranslationRegime::EL3:
+            return "EL3";
+          default:
+            GEM5_UNREACHABLE;
+        }
+    }
+
+    static inline std::ostream&
+    operator<<(std::ostream& os, SecurityState ss)
+    {
+        switch (ss) {
+          case SecurityState::NonSecure:
+            os << "NonSecure";
+            break;
+          case SecurityState::Secure:
+            os << "Secure";
+            break;
+          default:
+            panic("Invalid SecurityState\n");
+        }
+        return os;
+    }
+
     constexpr unsigned MaxSveVecLenInBits = 2048;
     static_assert(MaxSveVecLenInBits >= 128 &&
                   MaxSveVecLenInBits <= 2048 &&
@@ -471,6 +543,18 @@ namespace ArmISA
 
     constexpr unsigned VecRegSizeBytes = MaxSveVecLenInBytes;
     constexpr unsigned VecPredRegSizeBits = MaxSveVecLenInBytes;
+
+    constexpr unsigned MaxSmeVecLenInBits = 2048;
+    static_assert(MaxSmeVecLenInBits >= 128 &&
+                  MaxSmeVecLenInBits <= 2048 &&
+                  // Only powers of two are supported. We don't need to
+                  // check for the zero case here as we already know it
+                  // is over 128.
+                  (MaxSmeVecLenInBits & (MaxSmeVecLenInBits - 1)) == 0,
+                  "Unsupported max. SME vector length");
+    constexpr unsigned MaxSmeVecLenInBytes  = MaxSmeVecLenInBits >> 3;
+    constexpr unsigned MaxSmeVecLenInWords  = MaxSmeVecLenInBits >> 5;
+    constexpr unsigned MaxSmeVecLenInDWords = MaxSmeVecLenInBits >> 6;
 
 } // namespace ArmISA
 } // namespace gem5

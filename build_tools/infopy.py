@@ -42,8 +42,8 @@ import sys
 from code_formatter import code_formatter
 
 parser = argparse.ArgumentParser()
-parser.add_argument('info_py', help='info.py file path')
-parser.add_argument('files', help='file to include in info.py', nargs='*')
+parser.add_argument("info_py", help="info.py file path")
+parser.add_argument("files", help="file to include in info.py", nargs="*")
 
 args = parser.parse_args()
 
@@ -51,9 +51,13 @@ args = parser.parse_args()
 code = code_formatter()
 
 for source in args.files:
-    src = os.path.basename(source)
-    with open(source, 'r') as f:
-        data = ''.join(f)
-    code('${src} = ${{repr(data)}}')
+    # We replace the "."s in the file name with underscores to make
+    # it a valid python identifier. With the dot, "README.md" would generate
+    # `README.md = "..."` which is not valid as `md` is not a property of
+    # `README`.
+    src = os.path.basename(source).replace(".", "_")
+    with open(source) as f:
+        data = "".join(f)
+    code("${src} = ${{repr(data)}}")
 
 code.write(args.info_py)

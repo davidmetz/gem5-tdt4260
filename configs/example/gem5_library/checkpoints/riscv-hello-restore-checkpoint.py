@@ -46,15 +46,15 @@ scons build/RISCV/gem5.opt
 ```
 """
 
-from gem5.isas import ISA
-from gem5.utils.requires import requires
-from gem5.resources.resource import Resource
-from gem5.components.memory import SingleChannelDDR3_1600
-from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.boards.simple_board import SimpleBoard
 from gem5.components.cachehierarchies.classic.no_cache import NoCache
+from gem5.components.memory import SingleChannelDDR3_1600
+from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.isas import ISA
+from gem5.resources.resource import obtain_resource
 from gem5.simulate.simulator import Simulator
+from gem5.utils.requires import requires
 
 # This check ensures the gem5 binary is compiled to the RISCV ISA target.
 # If not, an exception will be thrown.
@@ -64,13 +64,14 @@ requires(isa_required=ISA.RISCV)
 cache_hierarchy = NoCache()
 
 # We use a single channel DDR3_1600 memory system
-memory = SingleChannelDDR3_1600(size="32MB")
+memory = SingleChannelDDR3_1600(size="32MiB")
 
 # We use a simple Timing processor with one core.
-processor = SimpleProcessor(cpu_type=CPUTypes.TIMING, isa=ISA.RISCV,
-                            num_cores=1)
+processor = SimpleProcessor(
+    cpu_type=CPUTypes.TIMING, isa=ISA.RISCV, num_cores=1
+)
 
-# The gem5 library simble board which can be used to run simple SE-mode
+# The gem5 library simple board which can be used to run simple SE-mode
 # simulations.
 board = SimpleBoard(
     clk_freq="3GHz",
@@ -83,30 +84,25 @@ board = SimpleBoard(
 # program compiled to the RISCV ISA. The `Resource` class will automatically
 # download the binary from the gem5 Resources cloud bucket if it's not already
 # present.
-board.set_se_binary_workload(
-    # the workload should be the same as the save-checkpoint script
-    Resource("riscv-hello")
-)
-
-# Getting the pre-taken checkpoint from gem5-resources. This checkpoint
+# We get the pre-taken checkpoint from gem5-resources. This checkpoint
 # was taken from running this gem5 configuration script,
 # configs/example/gem5_library/checkpoints/riscv-hello-save-checkpoint.py
-checkpoint_resource = Resource("riscv-hello-example-checkpoint")
+board.set_se_binary_workload(
+    # the workload should be the same as the save-checkpoint script
+    obtain_resource("riscv-hello"),
+    checkpoint=obtain_resource(
+        "riscv-hello-example-checkpoint", resource_version="3.0.0"
+    ),
+)
 
-# Now we restore the checkpoint by passing the path to the checkpoint to
-# the Simulator object. The checkpoint_path could be a string containing
-# the path to the checkpoint folder. However, here, we use gem5 resources
-# to automatically download the checkpoint folder, and use .get_local_path()
-# to obtain the path to that folder.
-checkpoint_path = checkpoint_resource.get_local_path()
-print("Restore a checkpoint at", checkpoint_path)
-simulator = Simulator(board=board, full_system=False,
-                      checkpoint_path=checkpoint_path)
+simulator = Simulator(
+    board=board,
+    full_system=False,
+)
 simulator.run()
 
 print(
     "Exiting @ tick {} because {}.".format(
-        simulator.get_current_tick(),
-        simulator.get_last_exit_event_cause(),
+        simulator.get_current_tick(), simulator.get_last_exit_event_cause()
     )
 )

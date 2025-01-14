@@ -147,7 +147,7 @@ Gicv3::init()
 
     for (int i = 0; i < threads; i++) {
         redistributors[i] = new Gicv3Redistributor(this, i);
-        cpuInterfaces[i] = new Gicv3CPUInterface(this, i);
+        cpuInterfaces[i] = new Gicv3CPUInterface(this, sys->threads[i]);
     }
 
     distRange = RangeSize(params().dist_addr,
@@ -284,6 +284,12 @@ Gicv3::postInt(uint32_t cpu, ArmISA::InterruptTypes int_type)
     auto tc = sys->threads[cpu];
     tc->getCpuPtr()->postInterrupt(tc->threadId(), int_type, 0);
     ArmSystem::callClearStandByWfi(tc);
+}
+
+void
+Gicv3::update()
+{
+    distributor->update();
 }
 
 bool

@@ -258,6 +258,7 @@ class MemCtrl : public qos::MemCtrl
       public:
 
         MemoryPort(const std::string& name, MemCtrl& _ctrl);
+        void disableSanityCheck();
 
       protected:
 
@@ -266,6 +267,8 @@ class MemCtrl : public qos::MemCtrl
                 PacketPtr pkt, MemBackdoorPtr &backdoor) override;
 
         void recvFunctional(PacketPtr pkt) override;
+        void recvMemBackdoorReq(const MemBackdoorReq &req,
+                MemBackdoorPtr &backdoor) override;
 
         bool recvTimingReq(PacketPtr) override;
 
@@ -514,8 +517,6 @@ class MemCtrl : public qos::MemCtrl
     uint32_t writeLowThreshold;
     const uint32_t minWritesPerSwitch;
     const uint32_t minReadsPerSwitch;
-    uint32_t writesThisTime;
-    uint32_t readsThisTime;
 
     /**
      * Memory controller configuration initialized based on parameter
@@ -723,7 +724,11 @@ class MemCtrl : public qos::MemCtrl
      *
      * @return true if event is scheduled
      */
-    bool respondEventScheduled() const { return respondEvent.scheduled(); }
+    virtual bool respondEventScheduled(uint8_t pseudo_channel = 0) const
+    {
+        assert(pseudo_channel == 0);
+        return respondEvent.scheduled();
+    }
 
     /**
      * Is there a read/write burst Event scheduled?
@@ -757,7 +762,7 @@ class MemCtrl : public qos::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a read state
      */
-    bool inReadBusState(bool next_state) const;
+    bool inReadBusState(bool next_state, const MemInterface* mem_intr) const;
 
     /**
      * Check the current direction of the memory channel
@@ -765,7 +770,7 @@ class MemCtrl : public qos::MemCtrl
      * @param next_state Check either the current or next bus state
      * @return True when bus is currently in a write state
      */
-    bool inWriteBusState(bool next_state) const;
+    bool inWriteBusState(bool next_state, const MemInterface* mem_intr) const;
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;
@@ -779,6 +784,8 @@ class MemCtrl : public qos::MemCtrl
     virtual Tick recvAtomic(PacketPtr pkt);
     virtual Tick recvAtomicBackdoor(PacketPtr pkt, MemBackdoorPtr &backdoor);
     virtual void recvFunctional(PacketPtr pkt);
+    virtual void recvMemBackdoorReq(const MemBackdoorReq &req,
+            MemBackdoorPtr &backdoor);
     virtual bool recvTimingReq(PacketPtr pkt);
 
     bool recvFunctionalLogic(PacketPtr pkt, MemInterface* mem_intr);

@@ -26,14 +26,17 @@
 
 
 from typing import Optional
-from m5.objects import Addr
-from ...utils.override import overrides
 
-from ..boards.mem_mode import MemMode
-from .abstract_processor import AbstractProcessor
+from m5.objects import Addr
+
+from ...utils.override import overrides
 from ..boards.abstract_board import AbstractBoard
+from ..boards.mem_mode import MemMode
+from .abstract_generator import AbstractGenerator
 from .gups_generator_core import GUPSGeneratorCore
-class GUPSGeneratorPAR(AbstractProcessor):
+
+
+class GUPSGeneratorPAR(AbstractGenerator):
     def __init__(
         self,
         num_cores: int,
@@ -43,6 +46,7 @@ class GUPSGeneratorPAR(AbstractProcessor):
         clk_freq: Optional[str] = None,
     ):
         """The GUPSGeneratorPAR class
+
         This class defines the interface for multi core GUPSGenerator, this
         generator could be used in place of a processor. In terms of
         benchmarking this generator implements the parallel (3rd)
@@ -50,10 +54,11 @@ class GUPSGeneratorPAR(AbstractProcessor):
 
         :param start_addr: The start address for allocating the update table.
         :param mem_size: The size of memory to allocate for the update table.
-        Should be a power of 2.
+                         Should be a power of 2.
         :param update_limit: The number of updates to do before terminating
-        simulation. Pass zero to run the benchmark to completion (The amount of
-        time it takes to simulate depends on )
+                             simulation. Pass zero to run the benchmark to
+                             completion (The amount of time it takes to simulate
+                             depends on it).
         """
         super().__init__(
             cores=self._create_cores(
@@ -71,11 +76,8 @@ class GUPSGeneratorPAR(AbstractProcessor):
         start_addr: Addr,
         mem_size: str,
         update_limit: int,
-        clk_freq: Optional[str],
+        clk_freq: str,
     ):
-        """
-        Helper function to create cores.
-        """
         return [
             GUPSGeneratorCore(
                 start_addr=start_addr,
@@ -86,12 +88,10 @@ class GUPSGeneratorPAR(AbstractProcessor):
             for _ in range(num_cores)
         ]
 
-    @overrides(AbstractProcessor)
-    def incorporate_processor(self, board: AbstractBoard) -> None:
-        board.set_mem_mode(MemMode.TIMING)
-
+    @overrides(AbstractGenerator)
     def start_traffic(self):
-        # This function should be implemented so that GUPSGeneratorPAR could be
-        # used in the same scripts that use LinearGenerator, RandomGenerator,
-        # and ComplexGenrator
+        """
+        Since GUPSGeneratorCore does not need a call to ``start_traffic`` to
+        start generation. This function is just pass.
+        """
         pass

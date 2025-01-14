@@ -42,17 +42,8 @@
 
 #include <sstream>
 
-#include "base/logging.hh"
-#include "sim/serialize.hh"
-
 namespace gem5
 {
-
-Random::Random()
-{
-    // default random seed
-    init(5489);
-}
 
 Random::Random(uint32_t s)
 {
@@ -61,6 +52,26 @@ Random::Random(uint32_t s)
 
 Random::~Random()
 {
+    assert(instances);
+
+    int removed = 0;
+
+    instances->erase(std::remove_if(instances->begin(), instances->end(),
+    [&](const auto& s_ptr)
+    {
+        removed += s_ptr.expired();
+        return s_ptr.expired();
+    }));
+
+    // Can only remove one pointer
+    // since we are destroying one
+    // object
+    assert(removed == 1);
+
+    if (instances->empty()) {
+        delete instances;
+        instances = nullptr;
+    }
 }
 
 void
@@ -69,33 +80,7 @@ Random::init(uint32_t s)
     gen.seed(s);
 }
 
-void
-Random::serialize(CheckpointOut &cp) const
-{
-    panic("Currently not used anywhere.\n");
-
-    // get the state from the generator
-    std::ostringstream oss;
-    oss << gen;
-    std::string state = oss.str();
-    paramOut(cp, "mt_state", state);
-}
-
-void
-Random::unserialize(CheckpointIn &cp)
-{
-    panic("Currently not used anywhere.\n");
-
-    // the random generator state did not use to be part of the
-    // checkpoint state, so be forgiving in the unserialization and
-    // keep on going if the parameter is not there
-    std::string state;
-    if (optParamIn(cp, "mt_state", state)) {
-        std::istringstream iss(state);
-        iss >> gen;
-    }
-}
-
-Random random_mt;
+uint64_t Random::globalSeed = 5489;
+Random::Instances* Random::instances = nullptr;
 
 } // namespace gem5

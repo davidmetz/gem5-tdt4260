@@ -24,13 +24,13 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
-from m5.params import *
-
 from m5.objects.BaseTLB import BaseTLB
+from m5.params import *
+from m5.SimObject import SimObject
+
 
 class SparcTLB(BaseTLB):
-    type = 'SparcTLB'
-    cxx_class = 'gem5::SparcISA::TLB'
-    cxx_header = 'arch/sparc/tlb.hh'
+    type = "SparcTLB"
+    cxx_class = "gem5::SparcISA::TLB"
+    cxx_header = "arch/sparc/tlb.hh"
     size = Param.Int(64, "TLB size")

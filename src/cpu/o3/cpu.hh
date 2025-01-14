@@ -51,7 +51,6 @@
 
 #include "arch/generic/pcstate.hh"
 #include "base/statistics.hh"
-#include "config/the_isa.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/commit.hh"
 #include "cpu/o3/decode.hh"
@@ -110,6 +109,9 @@ class CPU : public BaseCPU
 
     BaseMMU *mmu;
     using LSQRequest = LSQ::LSQRequest;
+
+    using PerThreadUnifiedRenameMap =
+        UnifiedRenameMap::PerThreadUnifiedRenameMap;
 
     /** Overall CPU status. */
     Status _status;
@@ -311,12 +313,12 @@ class CPU : public BaseCPU
      */
     void setMiscReg(int misc_reg, RegVal val, ThreadID tid);
 
-    RegVal getReg(PhysRegIdPtr phys_reg);
-    void getReg(PhysRegIdPtr phys_reg, void *val);
-    void *getWritableReg(PhysRegIdPtr phys_reg);
+    RegVal getReg(PhysRegIdPtr phys_reg, ThreadID tid);
+    void getReg(PhysRegIdPtr phys_reg, void *val, ThreadID tid);
+    void *getWritableReg(PhysRegIdPtr phys_reg, ThreadID tid);
 
-    void setReg(PhysRegIdPtr phys_reg, RegVal val);
-    void setReg(PhysRegIdPtr phys_reg, const void *val);
+    void setReg(PhysRegIdPtr phys_reg, RegVal val, ThreadID tid);
+    void setReg(PhysRegIdPtr phys_reg, const void *val, ThreadID tid);
 
     /** Architectural register accessors.  Looks up in the commit
      * rename table to obtain the true physical index of the
@@ -386,7 +388,7 @@ class CPU : public BaseCPU
      */
     std::queue<ListIt> removeList;
 
-#ifdef DEBUG
+#ifdef GEM5_DEBUG
     /** Debug structure to keep track of the sequence numbers still in
      * flight.
      */
@@ -421,10 +423,10 @@ class CPU : public BaseCPU
     UnifiedFreeList freeList;
 
     /** The rename map. */
-    UnifiedRenameMap renameMap[MaxThreads];
+    PerThreadUnifiedRenameMap renameMap;
 
     /** The commit rename map. */
-    UnifiedRenameMap commitRenameMap[MaxThreads];
+    PerThreadUnifiedRenameMap commitRenameMap;
 
     /** The re-order buffer. */
     ROB rob;
@@ -442,7 +444,7 @@ class CPU : public BaseCPU
     /** Integer Register Scoreboard */
     Scoreboard scoreboard;
 
-    std::vector<TheISA::ISA *> isa;
+    std::vector<BaseISA *> isa;
 
   public:
     /** Enum to give each stage a specific index, so when calling
@@ -582,38 +584,6 @@ class CPU : public BaseCPU
         /** Stat for total number of cycles the CPU spends descheduled due to a
          * quiesce operation or waiting for an interrupt. */
         statistics::Scalar quiesceCycles;
-        /** Stat for the number of committed instructions per thread. */
-        statistics::Vector committedInsts;
-        /** Stat for the number of committed ops (including micro ops) per
-         *  thread. */
-        statistics::Vector committedOps;
-        /** Stat for the CPI per thread. */
-        statistics::Formula cpi;
-        /** Stat for the total CPI. */
-        statistics::Formula totalCpi;
-        /** Stat for the IPC per thread. */
-        statistics::Formula ipc;
-        /** Stat for the total IPC. */
-        statistics::Formula totalIpc;
-
-        //number of integer register file accesses
-        statistics::Scalar intRegfileReads;
-        statistics::Scalar intRegfileWrites;
-        //number of float register file accesses
-        statistics::Scalar fpRegfileReads;
-        statistics::Scalar fpRegfileWrites;
-        //number of vector register file accesses
-        mutable statistics::Scalar vecRegfileReads;
-        statistics::Scalar vecRegfileWrites;
-        //number of predicate register file accesses
-        mutable statistics::Scalar vecPredRegfileReads;
-        statistics::Scalar vecPredRegfileWrites;
-        //number of CC register file accesses
-        statistics::Scalar ccRegfileReads;
-        statistics::Scalar ccRegfileWrites;
-        //number of misc
-        statistics::Scalar miscRegfileReads;
-        statistics::Scalar miscRegfileWrites;
     } cpuStats;
 
   public:

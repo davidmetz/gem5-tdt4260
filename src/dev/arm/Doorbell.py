@@ -33,13 +33,14 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
 from m5.params import *
+from m5.SimObject import SimObject
+
 
 class Doorbell(SimObject):
-    type = 'Doorbell'
+    type = "Doorbell"
     abstract = True
     cxx_header = "dev/arm/doorbell.hh"
-    cxx_class = 'gem5::Doorbell'
+    cxx_class = "gem5::Doorbell"
     set_address = Param.Addr("Doorbell set address")
     clear_address = Param.Addr("Doorbell clear address")

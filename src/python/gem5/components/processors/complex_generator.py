@@ -24,19 +24,23 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from typing import (
+    Any,
+    Iterator,
+    List,
+)
+
 from ...utils.override import overrides
-from ..boards.mem_mode import MemMode
+from .abstract_generator import (
+    AbstractGenerator,
+    partition_range,
+)
 from .complex_generator_core import ComplexGeneratorCore
 
-from .abstract_processor import AbstractProcessor
-from ..boards.abstract_board import AbstractBoard
 
-
-class ComplexGenerator(AbstractProcessor):
+class ComplexGenerator(AbstractGenerator):
     def __init__(self, num_cores: int = 1) -> None:
-        super().__init__(
-            cores=[ComplexGeneratorCore() for i in range(num_cores)]
-        )
+        super().__init__(cores=self._create_cores(num_cores=num_cores))
         """The complex generator
 
         This class defines an external interface to create a list of complex
@@ -45,14 +49,16 @@ class ComplexGenerator(AbstractProcessor):
         :param num_cores: The number of complex generator cores to create.
         """
 
-    @overrides(AbstractProcessor)
-    def incorporate_processor(self, board: AbstractBoard) -> None:
-        board.set_mem_mode(MemMode.TIMING)
+    def _create_cores(self, num_cores: int) -> List[ComplexGeneratorCore]:
+        """
+        Create a list of ComplexGeneratorCore.
+        """
+        return [ComplexGeneratorCore() for _ in range(num_cores)]
 
     def add_linear(
         self,
         duration: str = "1ms",
-        rate: str = "100GB/s",
+        rate: str = "100GiB/s",
         block_size: int = 64,
         min_addr: int = 0,
         max_addr: int = 32768,
@@ -64,26 +70,28 @@ class ComplexGenerator(AbstractProcessor):
         generator with the params specified.
 
         :param duration: The number of ticks for the generator core to generate
-        traffic.
+                         traffic.
         :param rate: The rate at which the synthetic data is read/written.
         :param block_size: The number of bytes to be read/written with each
-        request.
+                           request.
         :param min_addr: The lower bound of the address range the generator
-        will read/write from/to.
+                         will read/write from/to.
         :param max_addr: The upper bound of the address range the generator
-        will read/write from/to.
+                         will read/write from/to.
         :param rd_perc: The percentage of read requests among all the generated
-        requests. The write percentage would be equal to 100 - rd_perc.
+                        requests. The write percentage would be equal to
+                        ``100 - rd_perc``.
         :param data_limit: The amount of data in bytes to read/write by the
-        generator before stopping generation.
+                           generator before stopping generation.
         """
-        for core in self.cores:
+        ranges = partition_range(min_addr, max_addr, len(self.cores))
+        for i, core in enumerate(self.cores):
             core.add_linear(
                 duration,
                 rate,
                 block_size,
-                min_addr,
-                max_addr,
+                ranges[i][0],
+                ranges[i][1],
                 rd_perc,
                 data_limit,
             )
@@ -91,7 +99,7 @@ class ComplexGenerator(AbstractProcessor):
     def add_random(
         self,
         duration: str = "1ms",
-        rate: str = "100GB/s",
+        rate: str = "100GiB/s",
         block_size: int = 64,
         min_addr: int = 0,
         max_addr: int = 32768,
@@ -103,18 +111,19 @@ class ComplexGenerator(AbstractProcessor):
         generator with the params specified.
 
         :param duration: The number of ticks for the generator core to generate
-        traffic.
+                         traffic.
         :param rate: The rate at which the synthetic data is read/written.
         :param block_size: The number of bytes to be read/written with each
-        request.
+                           request.
         :param min_addr: The lower bound of the address range the generator
-        will read/write from/to.
+                         will read/write from/to.
         :param max_addr: The upper bound of the address range the generator
-        will read/write from/to.
+                         will read/write from/to.
         :param rd_perc: The percentage of read requests among all the generated
-        requests. The write percentage would be equal to 100 - rd_perc.
+                        requests. The write percentage would be equal to
+                        ``100 - rd_perc``.
         :param data_limit: The amount of data in bytes to read/write by the
-        generator before stopping generation.
+                           generator before stopping generation.
         """
         for core in self.cores:
             core.add_random(
@@ -127,6 +136,19 @@ class ComplexGenerator(AbstractProcessor):
                 data_limit,
             )
 
+    def set_traffic_from_python_generator(
+        self, generator: Iterator[Any]
+    ) -> None:
+        """
+        Sets the traffic pattern defined by generator argument.
+
+        :param generator: A python generator object that creates traffic
+                          patterns through calls to methods of PyTrafficGen.
+        """
+        for core in self.cores:
+            core.set_traffic_from_python_generator(generator)
+
+    @overrides(AbstractGenerator)
     def start_traffic(self) -> None:
         """
         This function will start the traffic at the top of the traffic list. It

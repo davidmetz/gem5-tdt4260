@@ -39,26 +39,48 @@ isa_map = {
 length_map = {
     "sparc": constants.long_tag,
     "mips": constants.long_tag,
-    "null": constants.quick_tag,
-    "arm": constants.quick_tag,
-    "x86": constants.quick_tag,
+    "null": constants.long_tag,
+    "arm": constants.very_long_tag,
+    "x86": constants.very_long_tag,
     "power": constants.long_tag,
     "riscv": constants.long_tag,
 }
 
 for isa in isa_map.keys():
-    gem5_verify_config(
-        name=f"requires-isa-{isa}",
-        verifiers=(),
-        fixtures=(),
-        config=joinpath(
-            config.base_dir,
-            "tests",
-            "gem5",
-            "configs",
-            "requires_check.py",
-        ),
-        config_args=["-i", isa],
-        valid_isas=(isa_map[isa],),
-        length=length_map[isa],
-    )
+    if isa in ("x86", "arm"):
+        # We only do these checks for X86 and ARM to save compiling
+        # other ISAs.
+        gem5_verify_config(
+            name=f"requires-isa-{isa}",
+            verifiers=(),
+            fixtures=(),
+            config=joinpath(
+                config.base_dir,
+                "tests",
+                "gem5",
+                "stdlib",
+                "configs",
+                "requires_check.py",
+            ),
+            config_args=["-i", isa],
+            valid_isas=(constants.all_compiled_tag,),
+            length=length_map[isa],
+        )
+
+    if isa != "null":
+        gem5_verify_config(
+            name=f"requires-isa-{isa}-with-all-compiled",
+            verifiers=(),
+            fixtures=(),
+            config=joinpath(
+                config.base_dir,
+                "tests",
+                "gem5",
+                "stdlib",
+                "configs",
+                "requires_check.py",
+            ),
+            config_args=["-i", isa],
+            valid_isas=(constants.all_compiled_tag,),
+            length=constants.quick_tag,
+        )

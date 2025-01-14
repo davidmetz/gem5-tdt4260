@@ -26,34 +26,45 @@
 
 from collections.abc import Mapping
 
-import _m5.debug
-from _m5.debug import SimpleFlag, CompoundFlag
-from _m5.debug import schedBreak, setRemoteGDBPort
 from m5.util import printList
+
+import _m5.debug
+from _m5.debug import (
+    CompoundFlag,
+    SimpleFlag,
+    schedBreak,
+)
+
 
 def help():
     sorted_flags = sorted(flags.items(), key=lambda kv: kv[0])
 
     print("Base Flags:")
-    for name, flag in filter(lambda kv: isinstance(kv[1], SimpleFlag)
-                             and not kv[1].isFormat, sorted_flags):
-        print("    %s: %s" % (name, flag.desc))
+    for name, flag in filter(
+        lambda kv: isinstance(kv[1], SimpleFlag) and not kv[1].isFormat,
+        sorted_flags,
+    ):
+        print(f"    {name}: {flag.desc}")
     print()
     print("Compound Flags:")
-    for name, flag in filter(lambda kv: isinstance(kv[1], CompoundFlag),
-                             sorted_flags):
-        print("    %s: %s" % (name, flag.desc))
+    for name, flag in filter(
+        lambda kv: isinstance(kv[1], CompoundFlag), sorted_flags
+    ):
+        print(f"    {name}: {flag.desc}")
         # The list of kids for flag "All" is too long, so it is not printed
         if name != "All":
-            printList([ c.name for c in flag.kids() ], indent=8)
+            printList([c.name for c in flag.kids()], indent=8)
         else:
             print("        All Base Flags")
     print()
     print("Formatting Flags:")
-    for name, flag in filter(lambda kv: isinstance(kv[1], SimpleFlag)
-                             and kv[1].isFormat, sorted_flags):
-        print("    %s: %s" % (name, flag.desc))
+    for name, flag in filter(
+        lambda kv: isinstance(kv[1], SimpleFlag) and kv[1].isFormat,
+        sorted_flags,
+    ):
+        print(f"    {name}: {flag.desc}")
     print()
+
 
 class AllFlags(Mapping):
     def __init__(self):
@@ -97,5 +108,6 @@ class AllFlags(Mapping):
     def items(self):
         self._update()
         return self._dict.items()
+
 
 flags = AllFlags()
