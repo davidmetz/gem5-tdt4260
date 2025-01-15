@@ -63,15 +63,15 @@ main(int argc, char *argv[])
 
     u_int64_t sum1 = 0;
     printf("Resetting stats \n");
-    m5_reset_stats;
+    m5_reset_stats(0, 0);
     // GEM5_RESETSTATS;
     // write to all cache lines in data_array - we expect cache_num_lines misses
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         data_array[i].data = i;
     }
     printf("Dumping and resetting stats \n");
-    m5_dump_stats;
-    m5_reset_stats;
+    m5_dump_stats(0, 0);
+    m5_reset_stats(0, 0);
     // GEM5_DUMPSTATS;
     // GEM5_RESETSTATS;
     // access each cache line in data_array - we expect cache_num_lines hits
@@ -79,8 +79,8 @@ main(int argc, char *argv[])
         sum1 += data_array[i].data;
     }
     printf("Dumping and resetting stats \n");
-    m5_dump_stats;
-    m5_reset_stats;
+    m5_dump_stats(0, 0);
+    m5_reset_stats(0, 0);
     // GEM5_DUMPSTATS;
     // GEM5_RESETSTATS;
     // write to all cache lines in flush_array - we expect cache_num_lines misses
@@ -88,8 +88,8 @@ main(int argc, char *argv[])
         flush_array[i].data = i;
     }
     printf("Dumping and resetting stats \n");
-    m5_dump_stats;
-    m5_reset_stats;
+    m5_dump_stats(0, 0);
+    m5_reset_stats(0, 0);
     // GEM5_DUMPSTATS;
     // GEM5_RESETSTATS;
     // access each cache line in data_array - we expect cache_num_lines misses
@@ -97,7 +97,7 @@ main(int argc, char *argv[])
         sum1 += data_array[i].data;
     }
     printf("Dumping and resetting stats \n");
-    m5_reset_stats;
+    m5_reset_stats(0, 0);
     // GEM5_DUMPSTATS;
     // GEM5_RESETSTATS;
     // access each byte in data_array - we expect cache_size_bytes hits
@@ -106,8 +106,8 @@ main(int argc, char *argv[])
         sum1 += data_array_bytes[i];
     }
     printf("Dumping and resetting stats \n");
-    m5_dump_stats;
-    m5_reset_stats;
+    m5_dump_stats(0, 0);
+    m5_reset_stats(0, 0);
     // GEM5_DUMPSTATS;
     // GEM5_RESETSTATS;
     // access each cache line in flush_array - we expect cache_num_lines misses
@@ -115,7 +115,7 @@ main(int argc, char *argv[])
         sum1 += flush_array[i].data;
     }
     printf("Dumping stats \n");
-    m5_dump_stats;
+    m5_dump_stats(0, 0);
     // GEM5_DUMPSTATS;
     if (cache_associativity!=1){
         // access all ways of the first set
