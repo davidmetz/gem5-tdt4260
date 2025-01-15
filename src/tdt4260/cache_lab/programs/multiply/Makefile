@@ -9,10 +9,11 @@ endif
 CC=gcc
 CFLAGS:=-Werror -O1 -g $(CFLAGS) -march=x86-64
 LDFLAGS:=-static
+CFLAGS += -I../../../../../include
 
 all: multiply
 
-multiply: multiply.o
+multiply: multiply.o ../../../../../util/m5/build/x86/out/libm5.a
 
 clean:
 	rm -f multiply *.o
