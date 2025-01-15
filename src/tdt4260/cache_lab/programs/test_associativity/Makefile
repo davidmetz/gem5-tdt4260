@@ -10,11 +10,10 @@ endif
 CC=gcc
 CFLAGS:=-Werror -O2 -g $(CFLAGS) -march=x86-64
 LDFLAGS:=-static
-CFLAGS += -I../../../../../include
 
 all: test_associativity
 
-test_associativity: test_associativity.o ../../../../../util/m5/build/x86/out/libm5.a
+test_associativity: test_associativity.o
 
 clean:
 	rm -f test_associativity *.o
