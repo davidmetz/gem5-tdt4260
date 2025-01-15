@@ -687,8 +687,6 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
         "stats. ")
     parser.add_argument("--iteration", action="store", type=int, default=None,
         help="Current iteration of runs for prefetcher")
-        "stats. ",
-    )
     parser.add_argument(
         "--override-vendor-string",
         action="store",

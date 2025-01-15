@@ -219,7 +219,7 @@ class StridePrefetcher(QueuedPrefetcher):
             raise TypeError("argument must be of SimObject type")
         self.addEvent(HWPProbeEventRetiredInsts(self, simObj,"RetiredInstsPC"))
 
-class TDTPrefetcherHashedSetAssociative(SetAssociative):
+class TDTPrefetcherHashedSetAssociative(TaggedSetAssociative):
     type = 'TDTPrefetcherHashedSetAssociative'
     cxx_class = 'gem5::prefetch::TDTPrefetcherHashedSetAssociative'
     cxx_header = "mem/cache/prefetch/tdt_prefetcher.hh"
@@ -231,7 +231,7 @@ class TDTPrefetcher(QueuedPrefetcher):
 
     table_assoc = Param.Int(4, "Assocaitivity of the PC table")
     table_entries = Param.MemorySize("64", "Number of entries of the PC table")
-    table_indexing_policy = Param.BaseIndexingPolicy(
+    table_indexing_policy = Param.TaggedIndexingPolicy(
         TDTPrefetcherHashedSetAssociative(entry_size = 1,
         assoc = Parent.table_assoc, size = Parent.table_entries),
         "Indexing policy of the PC table")

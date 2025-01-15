@@ -41,9 +41,9 @@ def check_test_associativity_stats(cache_size_bytes, cache_associativity,
     def misses(stat):
         return int(stat['system.cpu.cache_hierarchy.L1_IC.reqsReceived'])
     def loads(stat):
-        return int(stat['system.cpu.exec_context.thread_0.numLoadInsts'])
+        return int(stat['system.cpu.commitStats0.numLoadInsts'])
     def stores(stat):
-        return int(stat['system.cpu.exec_context.thread_0.numStoreInsts'])
+        return int(stat['system.cpu.commitStats0.numStoreInsts'])
 
     # we expect cache_num_lines misses
     assert loads(stats[0]) == 0

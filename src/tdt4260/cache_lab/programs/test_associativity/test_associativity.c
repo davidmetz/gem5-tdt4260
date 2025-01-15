@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <gem5/m5ops.h>
 
 #define BYTES_PER_LINE 64
 
@@ -61,43 +62,61 @@ main(int argc, char *argv[])
     }
 
     u_int64_t sum1 = 0;
-    GEM5_RESETSTATS;
+    printf("Resetting stats \n");
+    m5_reset_stats;
+    // GEM5_RESETSTATS;
     // write to all cache lines in data_array - we expect cache_num_lines misses
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         data_array[i].data = i;
     }
-    GEM5_DUMPSTATS;
-    GEM5_RESETSTATS;
+    printf("Dumping and resetting stats \n");
+    m5_dump_stats;
+    m5_reset_stats;
+    // GEM5_DUMPSTATS;
+    // GEM5_RESETSTATS;
     // access each cache line in data_array - we expect cache_num_lines hits
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         sum1 += data_array[i].data;
     }
-    GEM5_DUMPSTATS;
-    GEM5_RESETSTATS;
+    printf("Dumping and resetting stats \n");
+    m5_dump_stats;
+    m5_reset_stats;
+    // GEM5_DUMPSTATS;
+    // GEM5_RESETSTATS;
     // write to all cache lines in flush_array - we expect cache_num_lines misses
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         flush_array[i].data = i;
     }
-    GEM5_DUMPSTATS;
-    GEM5_RESETSTATS;
+    printf("Dumping and resetting stats \n");
+    m5_dump_stats;
+    m5_reset_stats;
+    // GEM5_DUMPSTATS;
+    // GEM5_RESETSTATS;
     // access each cache line in data_array - we expect cache_num_lines misses
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         sum1 += data_array[i].data;
     }
-    GEM5_DUMPSTATS;
-    GEM5_RESETSTATS;
+    printf("Dumping and resetting stats \n");
+    m5_reset_stats;
+    // GEM5_DUMPSTATS;
+    // GEM5_RESETSTATS;
     // access each byte in data_array - we expect cache_size_bytes hits
     u_int8_t * data_array_bytes = (u_int8_t *)data_array;
     for (u_int64_t i = 0; i < cache_size_bytes; ++i) {
         sum1 += data_array_bytes[i];
     }
-    GEM5_DUMPSTATS;
-    GEM5_RESETSTATS;
+    printf("Dumping and resetting stats \n");
+    m5_dump_stats;
+    m5_reset_stats;
+    // GEM5_DUMPSTATS;
+    // GEM5_RESETSTATS;
     // access each cache line in flush_array - we expect cache_num_lines misses
     for (u_int64_t i = 0; i < cache_num_lines; ++i) {
         sum1 += flush_array[i].data;
     }
-    GEM5_DUMPSTATS;
+    printf("Dumping stats \n");
+    m5_dump_stats;
+    // GEM5_DUMPSTATS;
     if (cache_associativity!=1){
         // access all ways of the first set
         for (u_int64_t i = 0; i < cache_associativity; ++i) {
@@ -106,35 +125,35 @@ main(int argc, char *argv[])
         COMPILER_MEM_BARRIER;
         // access aliasing element from flush array
         sum1 += flush_array[0].data;
-        GEM5_RESETSTATS;
+        // GEM5_RESETSTATS;
         // access all but the first way - they should still be in the cache - we expect cache_associativity-1 hits
         for (u_int64_t i = 1; i < cache_associativity; ++i) {
             sum1 += data_array[i*cache_num_sets].data;
         }
-        GEM5_DUMPSTATS;
-        GEM5_RESETSTATS;
+        // GEM5_DUMPSTATS;
+        // GEM5_RESETSTATS;
         // access first way - we expect 1 miss
         sum1 += data_array[0].data;
-        GEM5_DUMPSTATS;
+        // GEM5_DUMPSTATS;
         // access all ways of the first set
         for (u_int64_t i = 0; i < cache_associativity; ++i) {
             sum1 += data_array[i*cache_num_sets].data;
         }
-        GEM5_RESETSTATS;
+        // GEM5_RESETSTATS;
         // write first way, to check if lru updates on writes - we expect 1 hit
         data_array[0].data = 123;
-        GEM5_DUMPSTATS;
+        // GEM5_DUMPSTATS;
         // access aliasing element from flush array
         sum1 += flush_array[0].data;
-        GEM5_RESETSTATS;
+        // GEM5_RESETSTATS;
         // access first way - we expect 1 hit
         sum1 += data_array[0].data;
-        GEM5_DUMPSTATS;
-        GEM5_RESETSTATS;
+        // GEM5_DUMPSTATS;
+        // GEM5_RESETSTATS;
         // access second way - we expect 1 miss
         sum1 += data_array[cache_num_sets].data;
-        GEM5_DUMPSTATS;
-        GEM5_RESETSTATS;
+        // GEM5_DUMPSTATS;
+        // GEM5_RESETSTATS;
     }
     assert(sum1>0);
     return 0;

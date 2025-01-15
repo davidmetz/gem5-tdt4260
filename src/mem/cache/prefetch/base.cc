@@ -86,9 +86,7 @@ void
 Base::PrefetchListener::notify(const CacheAccessProbeArg &arg)
 {
     if (isFill) {
-        parent.notifyFill(pkt);
-    } else if (isPrefetchFill) {
-        parent.notifyPrefetchFill(pkt);
+        parent.notifyFill(arg);
     } else {
         parent.probeNotify(arg, miss);
     }

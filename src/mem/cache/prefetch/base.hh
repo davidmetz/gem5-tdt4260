@@ -76,7 +76,7 @@ class Base : public ClockedObject
       public:
         PrefetchListener(Base &_parent, ProbeManager *pm,
                          const std::string &name, bool _isFill = false,
-                         bool _miss = false, bool _isPrefetchFill = false)
+                         bool _miss = false)
             : ProbeListenerArgBase(pm, name),
               parent(_parent), isFill(_isFill), miss(_miss) {}
         void notify(const CacheAccessProbeArg &arg) override;
@@ -84,7 +84,6 @@ class Base : public ClockedObject
         Base &parent;
         const bool isFill;
         const bool miss;
-        const bool isPrefetchFill;
     };
 
     using EvictionInfo = CacheDataUpdateProbeArg;
