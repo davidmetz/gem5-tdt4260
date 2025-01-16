@@ -107,9 +107,9 @@ def hits(stat):
 def misses(stat):
     return int(stat['system.cpu.cache_hierarchy.L1_IC.reqsReceived'])
 def loads(stat):
-    return int(stat['system.cpu.exec_context.thread_0.numLoadInsts'])
+    return int(stat['system.cpu.commitStats0.numLoadInsts'])
 def stores(stat):
-    return int(stat['system.cpu.exec_context.thread_0.numStoreInsts'])
+    return int(stat['system.cpu.commitStats0.numStoreInsts'])
 
 for stat in stats:
     print(f"Loads: {loads(stat)} Stores: {stores(stat)} Hits: {hits(stat)} Misses: {misses(stat)}")
