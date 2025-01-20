@@ -55,7 +55,8 @@ RubyPrefetcherProxy::RubyPrefetcherProxy(AbstractController* _parent,
     pfQueue(_pf_queue),
     pfEvent([this]{ issuePrefetch(); }, name()),
     ppHit(nullptr), ppMiss(nullptr),
-    ppFill(nullptr), ppDataUpdate(nullptr)
+    ppFill(nullptr), ppPrefetchFill(nullptr),
+    ppDataUpdate(nullptr)
 {
     fatal_if(!cacheCntrl,
             "initializing a RubyPrefetcherProxy without a parent");

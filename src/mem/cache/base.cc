@@ -2530,6 +2530,8 @@ BaseCache::regProbePoints()
         this->getProbeManager(), "Miss");
     ppFill = new ProbePointArg<CacheAccessProbeArg>(
         this->getProbeManager(), "Fill");
+    ppPrefetchFill = new ProbePointArg<CacheAccessProbeArg>(
+        this->getProbeManager(), "PrefetchFill");
     ppDataUpdate =
         new ProbePointArg<CacheDataUpdateProbeArg>(
             this->getProbeManager(), "Data Update");

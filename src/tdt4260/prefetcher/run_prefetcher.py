@@ -39,6 +39,7 @@ for x in range(0, num_benchmarks):
         count = count + 1
     os.chdir(cwd)
 
+
 print(f"Runs completed, {count} benchmarks completed successfully, collating results")
 result_dst = "results/results_summary.txt"
 
@@ -52,7 +53,7 @@ for x in range(num_benchmarks):
             line = line.split()
             if (len(line) == 0):
                 continue
-            if "ipc" in line[0]:
+            if "system.switch_cpus.commitStats0.ipc" in line[0]:
                 ipcs.append(line[1])
             if "prefetcher" in line[0]:# or "cache" in line[0]:
                 data.append((line[0], line[1]))

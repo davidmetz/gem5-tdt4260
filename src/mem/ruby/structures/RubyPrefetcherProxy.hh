@@ -135,6 +135,9 @@ class RubyPrefetcherProxy : public CacheAccessor, public Named
     /** To probe when a cache fill occurs */
     ProbePointArg<CacheAccessProbeArg> *ppFill;
 
+    /** To probe when a cache prefetch fill occurs */
+    ProbePointArg<CacheAccessProbeArg> *ppPrefetchFill;
+
     /**
      * To probe when the contents of a block are updated. Content updates
      * include data fills, overwrites, and invalidations, which means that

@@ -206,7 +206,6 @@ def findCptDir(options, cptdir, testsys):
                 cpts.append(match.group(1))
 
         cpts.sort(key=lambda a: int(a))
-
         cpt_num = options.checkpoint_restore
         if cpt_num > len(cpts):
             fatal("Checkpoint %d not found", cpt_num)

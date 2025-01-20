@@ -939,7 +939,7 @@ Cache::serviceMSHRTargets(MSHR *mshr, const PacketPtr pkt, CacheBlk *blk)
 
     if (blk && !from_core && from_pref) {
         blk->setPrefetched();
-        ppPrefetchFill->notify(pkt);
+        ppPrefetchFill->notify(CacheAccessProbeArg(pkt, accessor));
     }
 
     if (!mshr->hasLockedRMWReadTarget()) {

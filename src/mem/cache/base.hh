@@ -370,7 +370,7 @@ class BaseCache : public ClockedObject
     /** To probe when a cache fill occurs */
     ProbePointArg<CacheAccessProbeArg> *ppFill;
 
-    ProbePointArg<PacketPtr> *ppPrefetchFill;
+    ProbePointArg<CacheAccessProbeArg> *ppPrefetchFill;
 
     /**
      * To probe when the contents of a block are updated. Content updates

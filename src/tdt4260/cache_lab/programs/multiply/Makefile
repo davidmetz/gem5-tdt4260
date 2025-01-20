@@ -13,7 +13,7 @@ CFLAGS += -I../../../../../include
 
 all: multiply
 
-multiply: multiply.o ../../../../../util/m5/build/x86/out/libm5.a
+multiply: multiply.o
 
 clean:
 	rm -f multiply *.o
